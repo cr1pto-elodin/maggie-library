@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { DocumentsController } from './documents.controller.js';
+import { OllamaEmbeddingService } from './ollama-embedding.service.js';
+import { PdfChunkingService } from './pdf-chunking.service.js';
 import { PdfExtractionService } from './pdf-extraction.service.js';
 
 describe('DocumentsController', () => {
@@ -59,5 +61,7 @@ describe('DocumentsController', () => {
 function createController(service: { extract: ReturnType<typeof vi.fn> }) {
   return new DocumentsController(
     service as unknown as PdfExtractionService,
+    {} as PdfChunkingService,
+    {} as OllamaEmbeddingService,
   );
 }

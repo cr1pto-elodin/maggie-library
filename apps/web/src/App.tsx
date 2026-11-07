@@ -9,9 +9,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
+  async function handleRequest(endpoint: 'extract' | 'embed') {
     if (!file) {
       setError('Selecione um arquivo PDF antes de continuar.')
       return
@@ -25,7 +23,7 @@ function App() {
     formData.append('file', file)
 
     try {
-      const response = await fetch(`${API_URL}/documents/extract`, {
+      const response = await fetch(`${API_URL}/documents/${endpoint}`, {
         method: 'POST',
         body: formData,
       })
@@ -47,6 +45,11 @@ function App() {
     }
   }
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void handleRequest('extract')
+  }
+
   function handleClear() {
     setFile(null)
     setResult(null)
@@ -59,7 +62,7 @@ function App() {
         <p className="eyebrow">Maggie Library</p>
         <h1>Extração de documentos</h1>
         <p className="intro">
-          Envie um PDF para visualizar o conteúdo extraído pela API.
+          Envie um PDF para extrair o texto ou gerar embeddings com o Ollama.
         </p>
 
         <form onSubmit={handleSubmit} className="upload-form">
@@ -79,6 +82,13 @@ function App() {
           <div className="actions">
             <button type="submit" disabled={isLoading}>
               {isLoading ? 'Processando...' : 'Extrair PDF'}
+            </button>
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => void handleRequest('embed')}
+            >
+              {isLoading ? 'Processando...' : 'Gerar embeddings'}
             </button>
             <button type="button" className="secondary" onClick={handleClear}>
               Limpar
