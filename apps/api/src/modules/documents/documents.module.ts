@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { DocumentsController } from './documents.controller.js';
-import { OllamaEmbeddingService } from './ollama-embedding.service.js';
-import { PdfChunkingService } from './pdf-chunking.service.js';
-import { PdfExtractionService } from './pdf-extraction.service.js';
+import { DocumentsController } from './controllers/documents.controller.js';
+import { OllamaEmbeddingService } from './services/ollama-embedding.service.js';
+import { PdfChunkingService } from './services/pdf-chunking.service.js';
+import { PdfExtractionService } from './services/pdf-extraction.service.js';
 
 @Module({
   controllers: [DocumentsController],

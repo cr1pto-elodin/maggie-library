@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { PdfExtractionResult } from './pdf-extraction.types.js';
-
-export interface PdfChunk {
-  index: number;
-  pageNumber: number;
-  text: string;
-}
+import type { PdfChunk } from '../models/pdf-chunk.model.js';
+import type { PdfExtractionResult } from '../models/pdf-extraction.model.js';
 
 @Injectable()
 export class PdfChunkingService {

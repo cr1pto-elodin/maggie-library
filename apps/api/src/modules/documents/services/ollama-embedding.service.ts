@@ -1,9 +1,5 @@
 import { Injectable } from '@nestjs/common';
-
-export interface OllamaEmbeddingResult {
-  model: string;
-  embeddings: number[][];
-}
+import type { OllamaEmbeddingResult } from '../models/ollama-embedding.model.js';
 
 @Injectable()
 export class OllamaEmbeddingService {

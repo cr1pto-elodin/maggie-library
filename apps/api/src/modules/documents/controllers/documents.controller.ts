@@ -7,9 +7,11 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { OllamaEmbeddingService } from './ollama-embedding.service.js';
-import { PdfChunkingService } from './pdf-chunking.service.js';
-import { PdfExtractionService } from './pdf-extraction.service.js';
+import type { EmbedDocumentResponseDto } from '../dtos/embed-document-response.dto.js';
+import type { PdfUpload } from '../models/pdf-upload.model.js';
+import { OllamaEmbeddingService } from '../services/ollama-embedding.service.js';
+import { PdfChunkingService } from '../services/pdf-chunking.service.js';
+import { PdfExtractionService } from '../services/pdf-extraction.service.js';
 
 @Controller('documents')
 export class DocumentsController {
@@ -21,9 +23,7 @@ export class DocumentsController {
 
   @Post('extract')
   @UseInterceptors(FileInterceptor('file'))
-  async extract(
-    @UploadedFile() file?: { buffer: Buffer; mimetype: string },
-  ) {
+  async extract(@UploadedFile() file?: PdfUpload) {
     this.validateFile(file);
 
     try {
@@ -37,9 +37,7 @@ export class DocumentsController {
 
   @Post('embed')
   @UseInterceptors(FileInterceptor('file'))
-  async embed(
-    @UploadedFile() file?: { buffer: Buffer; mimetype: string },
-  ) {
+  async embed(@UploadedFile() file?: PdfUpload): Promise<EmbedDocumentResponseDto> {
     this.validateFile(file);
 
     try {
@@ -75,9 +73,7 @@ export class DocumentsController {
     }
   }
 
-  private validateFile(
-    file?: { buffer: Buffer; mimetype: string },
-  ): asserts file is { buffer: Buffer; mimetype: string } {
+  private validateFile(file?: PdfUpload): asserts file is PdfUpload {
     if (!file) {
       throw new BadRequestException('Envie um arquivo PDF no campo "file".');
     }
