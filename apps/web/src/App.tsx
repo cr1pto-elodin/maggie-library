@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import './App.css'
 
-const API_URL = '/api'
+const API_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 function App() {
   const [file, setFile] = useState<File | null>(null)
