@@ -47,6 +47,23 @@ export function readHttpUrl(name: string, fallback: string): string {
   return value.replace(/\/$/, '');
 }
 
+export function readPostgresUrl(name: string, fallback: string): string {
+  const value = readNonEmptyString(name, fallback);
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} precisa ser uma URL válida.`);
+  }
+
+  if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
+    throw new Error(`${name} precisa usar o protocolo postgres ou postgresql.`);
+  }
+
+  return value;
+}
+
 export function readNonEmptyString(name: string, fallback: string): string {
   const rawValue = process.env[name];
   const value = rawValue === undefined ? fallback : rawValue.trim();

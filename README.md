@@ -2,7 +2,7 @@
 
 Maggie Library is a study project about **Retrieval-Augmented Generation (RAG)** running locally with [Ollama](https://ollama.com/). Its goal is to build and understand every stage of the architecture—from reading documents to semantic retrieval and generating answers grounded in sources.
 
-The project prioritizes incremental implementations, verifiable contracts, and explanations of architectural decisions. At this point, the ingestion pipeline can extract PDFs, create chunks, and generate embeddings, but it does not persist or query vectors yet.
+The project prioritizes incremental implementations, verifiable contracts, and explanations of architectural decisions. At this point, the ingestion pipeline can extract PDFs, create chunks, and generate embeddings. The PostgreSQL and pgvector foundation is available, but the pipeline does not persist or query vectors yet.
 
 ## Current Status
 
@@ -16,13 +16,14 @@ Already implemented:
 - validation of embedding count, content, and dimensions;
 - typed and validated configuration;
 - global HTTP client with a configurable timeout;
+- local PostgreSQL 17 infrastructure with pgvector;
+- typed Drizzle schema and versioned database migrations;
 - web interface for extraction and embedding generation;
 - unit and end-to-end HTTP tests.
 
 Not implemented yet:
 
-- database and document persistence;
-- vector storage;
+- document and vector persistence through the ingestion pipeline;
 - similarity search;
 - answer generation using retrieved passages;
 - citations and conversation history.
@@ -43,10 +44,13 @@ The flow currently ends with the HTTP response. Vectors are not stored yet.
 
 ```text
 maggie-library/
+├── compose.yaml                      # Local PostgreSQL with pgvector
 ├── apps/
 │   ├── api/                         # NestJS API
+│   │   ├── drizzle/                # Versioned SQL migrations
 │   │   └── src/
 │   │       ├── config/              # Typed configuration and validation
+│   │       ├── database/            # Connection, schema, and database types
 │   │       ├── modules/
 │   │       │   ├── documents/       # Extraction, chunking, and embeddings
 │   │       │   └── health/          # Basic API health check
@@ -74,6 +78,8 @@ services/
 - NestJS;
 - `@nestjs/config`;
 - `@nestjs/axios` and Axios;
+- PostgreSQL 17 with pgvector;
+- Drizzle ORM and the `pg` driver;
 - `pdf-parse`;
 - Vitest and Supertest.
 
@@ -94,6 +100,7 @@ services/
 
 - Node.js 24 or later;
 - pnpm;
+- Docker with Docker Compose;
 - Ollama installed and running;
 - the models used by the project available locally.
 
@@ -122,6 +129,8 @@ cp apps/web/.env.example apps/web/.env
 | `PORT`                         | `4000`                   | API HTTP port                           |
 | `API_PREFIX`                   | `api`                    | Global route prefix                     |
 | `CORS_ORIGIN`                  | `http://localhost:5173`  | Origin allowed by CORS                  |
+| `DATABASE_URL`                 | PostgreSQL on port 5433  | PostgreSQL connection string            |
+| `DATABASE_POOL_MAX`            | `10`                     | Maximum connections in the API pool     |
 | `HTTP_TIMEOUT_MS`              | `30000`                  | Default HTTP client timeout             |
 | `DOCUMENT_MAX_FILE_SIZE_BYTES` | `10485760`               | Upload limit, equivalent to 10 MiB      |
 | `DOCUMENT_CHUNK_SIZE`          | `1200`                   | Maximum number of characters per chunk  |
@@ -151,9 +160,38 @@ cd ../web
 pnpm install
 ```
 
+## Database
+
+Start the local PostgreSQL instance with pgvector:
+
+```bash
+docker compose up -d postgres
+```
+
+Apply all versioned migrations:
+
+```bash
+cd apps/api
+pnpm run db:migrate
+```
+
+The initial migration enables the `vector` extension and creates two tables:
+
+- `documents` stores the file identity, SHA-256 checksum, and indexing settings;
+- `document_chunks` stores page references, chunk content, and `vector(768)` embeddings.
+
+The Docker credentials are intended only for local development. Override `DATABASE_URL` for any other environment.
+
+When the TypeScript schema changes, generate a new migration instead of editing a migration that has already been applied:
+
+```bash
+cd apps/api
+pnpm run db:generate
+```
+
 ## Local Development
 
-With Ollama running, start the API:
+With PostgreSQL and Ollama running, start the API:
 
 ```bash
 cd apps/api
@@ -201,6 +239,7 @@ pnpm run test
 pnpm run test:e2e
 pnpm run lint
 pnpm run build
+pnpm run db:generate
 ```
 
 For the web application:
@@ -231,11 +270,21 @@ Extraction, chunking, and embedding generation happen within the same request. T
 
 Services consume typed configuration through dependency injection. Environment access, defaults, and validation are restricted to the `config/` layer, preventing operational rules from spreading through business logic.
 
+### Relational and Vector Schema
+
+Documents and chunks use separate tables so document-level metadata is not repeated for every vector. A unique checksum prevents duplicate source files, while `(document_id, chunk_index)` preserves the chunk order and prevents duplicate positions. Deleting a document cascades to its chunks.
+
+The embedding column is fixed at `vector(768)`, matching the current `embeddinggemma` output. Changing to a model with another dimension will require an explicit migration rather than silently mixing incompatible vectors.
+
+### Exact Search Before Approximate Indexing
+
+The initial schema does not create an HNSW or IVFFlat index. pgvector performs exact nearest-neighbor search by default, which is easier to evaluate and preserves full recall while the collection is small. Approximate indexing will be considered after retrieval quality and query latency are measured with representative data.
+
 ## Roadmap
 
 ### 1. Vector Persistence
 
-- add PostgreSQL with `pgvector`;
+- connect the existing ingestion pipeline to the database repository;
 - store documents, metadata, chunks, and embeddings;
 - use checksums to avoid duplicate indexing;
 - define document reindexing and deletion.
