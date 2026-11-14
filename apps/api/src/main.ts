@@ -1,17 +1,14 @@
-import { existsSync } from 'node:fs';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
-
-if (existsSync('.env')) {
-  process.loadEnvFile();
-}
+import { setupApp } from './app.setup.js';
+import { appConfig, type AppConfig } from './config/app.config.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix('api');
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
-  });
-  await app.listen(process.env.PORT ?? 4000);
+  const config = app.get<AppConfig>(appConfig.KEY);
+
+  setupApp(app, config);
+
+  await app.listen(config.port);
 }
 await bootstrap();
