@@ -1,45 +1,36 @@
-import { Injectable } from '@nestjs/common';
-import type { OllamaEmbeddingResult } from '../models/ollama-embedding.model.js';
+import { HttpService } from '@nestjs/axios';
+import { Inject, Injectable } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
+import {
+  ollamaConfig,
+  type OllamaConfig,
+} from '../../../../config/ollama.config.js';
+import type { OllamaEmbeddingResult } from '../../models/ollama-embedding.model.js';
 
 @Injectable()
 export class OllamaEmbeddingService {
-  private readonly baseUrl = process.env.OLLAMA_URL ?? 'http://localhost:11434';
-
-  private readonly model =
-    process.env.OLLAMA_EMBEDDING_MODEL ?? 'embeddinggemma';
-
-  private readonly timeoutMs = this.readTimeout();
+  constructor(
+    private readonly httpService: HttpService,
+    @Inject(ollamaConfig.KEY)
+    private readonly config: OllamaConfig,
+  ) {}
 
   async embed(input: string[]): Promise<OllamaEmbeddingResult> {
     if (input.length === 0) {
       throw new Error('Informe ao menos um texto para gerar embeddings.');
     }
 
-    const response = await fetch(`${this.baseUrl}/api/embed`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(this.timeoutMs),
-      body: JSON.stringify({
-        model: this.model,
-        input,
-      }),
-    });
+    const response = await firstValueFrom(
+      this.httpService.post<unknown>(
+        `${this.config.baseUrl}${this.config.embeddingPath}`,
+        {
+          model: this.config.embeddingModel,
+          input,
+        },
+      ),
+    );
 
-    if (!response.ok) {
-      throw new Error(`Ollama respondeu com status ${response.status}.`);
-    }
-
-    return this.validateResult(await response.json(), input.length);
-  }
-
-  private readTimeout(): number {
-    const configuredTimeout = Number(process.env.OLLAMA_TIMEOUT_MS ?? 30_000);
-
-    return Number.isSafeInteger(configuredTimeout) && configuredTimeout > 0
-      ? configuredTimeout
-      : 30_000;
+    return this.validateResult(response.data, input.length);
   }
 
   private validateResult(

@@ -2,7 +2,6 @@ import {
   BadGatewayException,
   BadRequestException,
   Controller,
-  PayloadTooLargeException,
   Post,
   UploadedFile,
   UseInterceptors,
@@ -10,11 +9,9 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { EmbedDocumentResponseDto } from '../dtos/embed-document-response.dto.js';
 import type { PdfUpload } from '../models/pdf-upload.model.js';
-import { OllamaEmbeddingService } from '../services/ollama-embedding.service.js';
-import { PdfChunkingService } from '../services/pdf-chunking.service.js';
-import { PdfExtractionService } from '../services/pdf-extraction.service.js';
-
-const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
+import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
+import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
 
 @Controller('documents')
 export class DocumentsController {
@@ -25,9 +22,7 @@ export class DocumentsController {
   ) {}
 
   @Post('extract')
-  @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_PDF_SIZE_BYTES } }),
-  )
+  @UseInterceptors(FileInterceptor('file'))
   async extract(@UploadedFile() file?: PdfUpload) {
     this.validateFile(file);
 
@@ -35,9 +30,7 @@ export class DocumentsController {
   }
 
   @Post('embed')
-  @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_PDF_SIZE_BYTES } }),
-  )
+  @UseInterceptors(FileInterceptor('file'))
   async embed(
     @UploadedFile() file?: PdfUpload,
   ): Promise<EmbedDocumentResponseDto> {
@@ -79,10 +72,6 @@ export class DocumentsController {
 
     if (file.mimetype !== 'application/pdf') {
       throw new BadRequestException('O arquivo precisa ser um PDF.');
-    }
-
-    if (file.buffer.length > MAX_PDF_SIZE_BYTES) {
-      throw new PayloadTooLargeException('O PDF não pode exceder 10 MB.');
     }
   }
 

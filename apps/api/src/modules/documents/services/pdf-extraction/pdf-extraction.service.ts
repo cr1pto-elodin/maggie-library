@@ -3,7 +3,7 @@ import { PDFParse, type DateNode, type OutlineNode } from 'pdf-parse';
 import type {
   PdfExtractionResult,
   PdfOutlineItem,
-} from '../models/pdf-extraction.model.js';
+} from '../../models/pdf-extraction.model.js';
 
 @Injectable()
 export class PdfExtractionService {

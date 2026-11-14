@@ -1,8 +1,14 @@
-import type { PdfExtractionResult } from '../models/pdf-extraction.model.js';
+import type { DocumentsConfig } from '../../../../config/documents.config.js';
+import type { PdfExtractionResult } from '../../models/pdf-extraction.model.js';
 import { PdfChunkingService } from './pdf-chunking.service.js';
 
 describe('PdfChunkingService', () => {
-  const service = new PdfChunkingService();
+  const config: DocumentsConfig = {
+    maxFileSizeBytes: 10 * 1024 * 1024,
+    chunkSize: 1_200,
+    chunkOverlap: 200,
+  };
+  const service = new PdfChunkingService(config);
 
   it('normalizes whitespace and ignores empty pages', () => {
     const document = createDocument([
@@ -28,6 +34,20 @@ describe('PdfChunkingService', () => {
     expect(chunks[0]?.text).toBe(text.slice(0, 1_200));
     expect(chunks[1]?.text).toBe(text.slice(1_000));
     expect(chunks[0]?.text.slice(-200)).toBe(chunks[1]?.text.slice(0, 200));
+  });
+
+  it('uses the configured chunk size and overlap', () => {
+    const configuredService = new PdfChunkingService({
+      ...config,
+      chunkSize: 10,
+      chunkOverlap: 2,
+    });
+    const text = 'abcdefghijklmnop';
+
+    expect(configuredService.chunk(createDocument([text]))).toEqual([
+      { index: 0, pageNumber: 1, text: 'abcdefghij' },
+      { index: 1, pageNumber: 1, text: 'ijklmnop' },
+    ]);
   });
 
   it('keeps page numbers and sequential indexes across pages', () => {

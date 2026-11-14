@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
-import type { PdfChunk } from '../models/pdf-chunk.model.js';
-import type { PdfExtractionResult } from '../models/pdf-extraction.model.js';
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  documentsConfig,
+  type DocumentsConfig,
+} from '../../../../config/documents.config.js';
+import type { PdfChunk } from '../../models/pdf-chunk.model.js';
+import type { PdfExtractionResult } from '../../models/pdf-extraction.model.js';
 
 @Injectable()
 export class PdfChunkingService {
-  private readonly chunkSize = 1200;
-  private readonly overlap = 200;
+  constructor(
+    @Inject(documentsConfig.KEY)
+    private readonly config: DocumentsConfig,
+  ) {}
 
   chunk(document: PdfExtractionResult): PdfChunk[] {
     const chunks: PdfChunk[] = [];
@@ -13,8 +19,8 @@ export class PdfChunkingService {
     for (const page of document.pages) {
       const text = page.text.replace(/\s+/g, ' ').trim();
 
-      for (let start = 0; start < text.length; ) {
-        const end = Math.min(start + this.chunkSize, text.length);
+      for (let start = 0; start < text.length;) {
+        const end = Math.min(start + this.config.chunkSize, text.length);
         const chunkText = text.slice(start, end).trim();
 
         if (chunkText) {
@@ -29,7 +35,7 @@ export class PdfChunkingService {
           break;
         }
 
-        start = end - this.overlap;
+        start = end - this.config.chunkOverlap;
       }
     }
 

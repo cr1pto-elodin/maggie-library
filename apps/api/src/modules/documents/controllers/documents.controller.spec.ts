@@ -1,12 +1,8 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  PayloadTooLargeException,
-} from '@nestjs/common';
+import { BadGatewayException, BadRequestException } from '@nestjs/common';
 import { DocumentsController } from './documents.controller.js';
-import { OllamaEmbeddingService } from '../services/ollama-embedding.service.js';
-import { PdfChunkingService } from '../services/pdf-chunking.service.js';
-import { PdfExtractionService } from '../services/pdf-extraction.service.js';
+import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
+import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
+import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
 
 describe('DocumentsController', () => {
   const extractionResult = {
@@ -150,18 +146,6 @@ describe('DocumentsController', () => {
     );
     await expect(controller.embed(file)).rejects.toThrow(
       'Não foi possível gerar embeddings usando o Ollama.',
-    );
-  });
-
-  it('rejects PDFs larger than 10 MB', async () => {
-    const controller = createController({ extract: vi.fn() });
-    const file = {
-      buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
-      mimetype: 'application/pdf',
-    };
-
-    await expect(controller.extract(file)).rejects.toBeInstanceOf(
-      PayloadTooLargeException,
     );
   });
 });
