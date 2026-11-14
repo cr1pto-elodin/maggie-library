@@ -8,6 +8,11 @@ function App() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<
+    'idle' | 'copied' | 'error'
+  >('idle')
+
+  const formattedResult = result ? JSON.stringify(result, null, 2) : ''
 
   async function handleRequest(endpoint: 'extract' | 'embed') {
     if (!file) {
@@ -18,6 +23,7 @@ function App() {
     setIsLoading(true)
     setError(null)
     setResult(null)
+    setCopyStatus('idle')
 
     const formData = new FormData()
     formData.append('file', file)
@@ -54,6 +60,16 @@ function App() {
     setFile(null)
     setResult(null)
     setError(null)
+    setCopyStatus('idle')
+  }
+
+  async function handleCopyResult() {
+    try {
+      await navigator.clipboard.writeText(formattedResult)
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('error')
+    }
   }
 
   return (
@@ -75,6 +91,7 @@ function App() {
               setFile(event.target.files?.[0] ?? null)
               setError(null)
               setResult(null)
+              setCopyStatus('idle')
             }}
           />
           {file && <p className="file-name">Selecionado: {file.name}</p>}
@@ -100,8 +117,38 @@ function App() {
 
         {result && (
           <section className="result" aria-live="polite">
-            <h2>Resposta da API</h2>
-            <pre>{JSON.stringify(result, null, 2)}</pre>
+            <div className="result-header">
+              <h2>Resposta da API</h2>
+              <button
+                type="button"
+                className="copy-button"
+                aria-label="Copiar resposta"
+                title={
+                  copyStatus === 'copied'
+                    ? 'Resposta copiada'
+                    : 'Copiar resposta'
+                }
+                onClick={() => void handleCopyResult()}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <rect x="9" y="9" width="11" height="11" rx="2" />
+                  <path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" />
+                </svg>
+              </button>
+            </div>
+            <span className="sr-only" aria-live="polite">
+              {copyStatus === 'copied' ? 'Resposta copiada.' : ''}
+            </span>
+            <pre>{formattedResult}</pre>
+            {copyStatus === 'error' && (
+              <p className="feedback error">
+                Não foi possível copiar a resposta.
+              </p>
+            )}
           </section>
         )}
       </section>
