@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   BadRequestException,
   Controller,
+  PayloadTooLargeException,
   Post,
   UploadedFile,
   UseInterceptors,
@@ -13,6 +14,8 @@ import { OllamaEmbeddingService } from '../services/ollama-embedding.service.js'
 import { PdfChunkingService } from '../services/pdf-chunking.service.js';
 import { PdfExtractionService } from '../services/pdf-extraction.service.js';
 
+const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+
 @Controller('documents')
 export class DocumentsController {
   constructor(
@@ -22,34 +25,34 @@ export class DocumentsController {
   ) {}
 
   @Post('extract')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_PDF_SIZE_BYTES } }),
+  )
   async extract(@UploadedFile() file?: PdfUpload) {
     this.validateFile(file);
 
-    try {
-      return await this.pdfExtractionService.extract(file.buffer);
-    } catch {
-      throw new BadRequestException(
-        'Não foi possível extrair o conteúdo do arquivo PDF.',
-      );
-    }
+    return this.extractPdf(file.buffer);
   }
 
   @Post('embed')
-  @UseInterceptors(FileInterceptor('file'))
-  async embed(@UploadedFile() file?: PdfUpload): Promise<EmbedDocumentResponseDto> {
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_PDF_SIZE_BYTES } }),
+  )
+  async embed(
+    @UploadedFile() file?: PdfUpload,
+  ): Promise<EmbedDocumentResponseDto> {
     this.validateFile(file);
 
+    const document = await this.extractPdf(file.buffer);
+    const chunks = this.pdfChunkingService.chunk(document);
+
+    if (chunks.length === 0) {
+      throw new BadRequestException(
+        'O PDF não possui texto para gerar embeddings.',
+      );
+    }
+
     try {
-      const document = await this.pdfExtractionService.extract(file.buffer);
-      const chunks = this.pdfChunkingService.chunk(document);
-
-      if (chunks.length === 0) {
-        throw new BadRequestException(
-          'O PDF não possui texto para gerar embeddings.',
-        );
-      }
-
       const embeddingResult = await this.ollamaEmbeddingService.embed(
         chunks.map((chunk) => chunk.text),
       );
@@ -62,11 +65,7 @@ export class DocumentsController {
           embedding: embeddingResult.embeddings[index],
         })),
       };
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
+    } catch {
       throw new BadGatewayException(
         'Não foi possível gerar embeddings usando o Ollama.',
       );
@@ -80,6 +79,20 @@ export class DocumentsController {
 
     if (file.mimetype !== 'application/pdf') {
       throw new BadRequestException('O arquivo precisa ser um PDF.');
+    }
+
+    if (file.buffer.length > MAX_PDF_SIZE_BYTES) {
+      throw new PayloadTooLargeException('O PDF não pode exceder 10 MB.');
+    }
+  }
+
+  private async extractPdf(buffer: Buffer) {
+    try {
+      return await this.pdfExtractionService.extract(buffer);
+    } catch {
+      throw new BadRequestException(
+        'Não foi possível extrair o conteúdo do arquivo PDF.',
+      );
     }
   }
 }

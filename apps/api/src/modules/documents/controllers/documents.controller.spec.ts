@@ -1,4 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  PayloadTooLargeException,
+} from '@nestjs/common';
 import { DocumentsController } from './documents.controller.js';
 import { OllamaEmbeddingService } from '../services/ollama-embedding.service.js';
 import { PdfChunkingService } from '../services/pdf-chunking.service.js';
@@ -56,12 +60,120 @@ describe('DocumentsController', () => {
       'Não foi possível extrair o conteúdo do arquivo PDF.',
     );
   });
+
+  it('generates embeddings for the extracted PDF chunks', async () => {
+    const chunks = [
+      { index: 0, pageNumber: 1, text: 'Primeiro trecho' },
+      { index: 1, pageNumber: 1, text: 'Segundo trecho' },
+    ];
+    const extractionService = {
+      extract: vi.fn().mockResolvedValue(extractionResult),
+    };
+    const chunkingService = { chunk: vi.fn().mockReturnValue(chunks) };
+    const embeddingService = {
+      embed: vi.fn().mockResolvedValue({
+        model: 'embeddinggemma',
+        embeddings: [
+          [0.1, 0.2],
+          [0.3, 0.4],
+        ],
+      }),
+    };
+    const controller = createController(
+      extractionService,
+      chunkingService,
+      embeddingService,
+    );
+    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
+
+    await expect(controller.embed(file)).resolves.toEqual({
+      model: 'embeddinggemma',
+      dimensions: 2,
+      chunks: [
+        { ...chunks[0], embedding: [0.1, 0.2] },
+        { ...chunks[1], embedding: [0.3, 0.4] },
+      ],
+    });
+    expect(embeddingService.embed).toHaveBeenCalledWith([
+      'Primeiro trecho',
+      'Segundo trecho',
+    ]);
+  });
+
+  it('rejects a PDF without text before calling Ollama', async () => {
+    const embeddingService = { embed: vi.fn() };
+    const controller = createController(
+      { extract: vi.fn().mockResolvedValue(extractionResult) },
+      { chunk: vi.fn().mockReturnValue([]) },
+      embeddingService,
+    );
+    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
+
+    await expect(controller.embed(file)).rejects.toThrow(
+      'O PDF não possui texto para gerar embeddings.',
+    );
+    expect(embeddingService.embed).not.toHaveBeenCalled();
+  });
+
+  it('reports extraction errors during embedding as a bad request', async () => {
+    const embeddingService = { embed: vi.fn() };
+    const controller = createController(
+      { extract: vi.fn().mockRejectedValue(new Error('invalid PDF')) },
+      { chunk: vi.fn() },
+      embeddingService,
+    );
+    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
+
+    await expect(controller.embed(file)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(controller.embed(file)).rejects.toThrow(
+      'Não foi possível extrair o conteúdo do arquivo PDF.',
+    );
+    expect(embeddingService.embed).not.toHaveBeenCalled();
+  });
+
+  it('reports Ollama errors as a bad gateway', async () => {
+    const controller = createController(
+      { extract: vi.fn().mockResolvedValue(extractionResult) },
+      {
+        chunk: vi
+          .fn()
+          .mockReturnValue([{ index: 0, pageNumber: 1, text: 'Trecho' }]),
+      },
+      { embed: vi.fn().mockRejectedValue(new Error('Ollama unavailable')) },
+    );
+    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
+
+    await expect(controller.embed(file)).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
+    await expect(controller.embed(file)).rejects.toThrow(
+      'Não foi possível gerar embeddings usando o Ollama.',
+    );
+  });
+
+  it('rejects PDFs larger than 10 MB', async () => {
+    const controller = createController({ extract: vi.fn() });
+    const file = {
+      buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
+      mimetype: 'application/pdf',
+    };
+
+    await expect(controller.extract(file)).rejects.toBeInstanceOf(
+      PayloadTooLargeException,
+    );
+  });
 });
 
-function createController(service: { extract: ReturnType<typeof vi.fn> }) {
+function createController(
+  extractionService: { extract: ReturnType<typeof vi.fn> },
+  chunkingService: { chunk: ReturnType<typeof vi.fn> } = { chunk: vi.fn() },
+  embeddingService: { embed: ReturnType<typeof vi.fn> } = { embed: vi.fn() },
+) {
   return new DocumentsController(
-    service as unknown as PdfExtractionService,
-    {} as PdfChunkingService,
-    {} as OllamaEmbeddingService,
+    extractionService as unknown as PdfExtractionService,
+    chunkingService as unknown as PdfChunkingService,
+    embeddingService as unknown as OllamaEmbeddingService,
   );
 }
