@@ -3,9 +3,17 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module.js';
+import { setupApp } from './../src/app.setup.js';
+import { appConfig, type AppConfig } from './../src/config/app.config.js';
+import {
+  documentsConfig,
+  type DocumentsConfig,
+} from './../src/config/documents.config.js';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication<App>;
+  let apiPrefix: string;
+  let maxFileSizeBytes: number;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -13,20 +21,25 @@ describe('HealthController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api');
+    const applicationConfig = app.get<AppConfig>(appConfig.KEY);
+    const documentConfig = app.get<DocumentsConfig>(documentsConfig.KEY);
+
+    setupApp(app, applicationConfig);
+    apiPrefix = applicationConfig.apiPrefix;
+    maxFileSizeBytes = documentConfig.maxFileSizeBytes;
     await app.init();
   });
 
   it('/api/health (GET)', () => {
     return request(app.getHttpServer())
-      .get('/api/health')
+      .get(`/${apiPrefix}/health`)
       .expect(200)
       .expect('Hello World!');
   });
 
   it('/api/documents/extract (POST)', async () => {
     await request(app.getHttpServer())
-      .post('/api/documents/extract')
+      .post(`/${apiPrefix}/documents/extract`)
       .attach('file', createPdfFixture(), {
         filename: 'fixture.pdf',
         contentType: 'application/pdf',
@@ -36,6 +49,16 @@ describe('HealthController (e2e)', () => {
         expect(body.totalPages).toBe(1);
         expect(body.text).toContain('Maggie Library PDF');
       });
+  });
+
+  it('/api/documents/extract (POST) rejects oversized PDFs', async () => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/extract`)
+      .attach('file', Buffer.alloc(maxFileSizeBytes + 1), {
+        filename: 'oversized.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(413);
   });
 
   afterEach(async () => {
