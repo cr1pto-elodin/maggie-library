@@ -1,5 +1,8 @@
 import { registerAs, type ConfigType } from '@nestjs/config';
-import { readHttpUrl, readNonEmptyString } from './environment.validation.js';
+import {
+  readHttpUrl,
+  readNonEmptyString,
+} from '../../../config/environment/environment-reader.js';
 
 export const ollamaConfig = registerAs('ollama', () => ({
   baseUrl: readHttpUrl('OLLAMA_URL', 'http://localhost:11434'),

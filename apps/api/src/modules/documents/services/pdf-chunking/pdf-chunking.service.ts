@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   documentsConfig,
   type DocumentsConfig,
-} from '../../../../config/documents.config.js';
+} from '../../config/documents.config.js';
 import type { PdfChunk } from '../../models/pdf-chunk.model.js';
 import type { PdfExtractionResult } from '../../models/pdf-extraction.model.js';
 

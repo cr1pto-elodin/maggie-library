@@ -1,16 +1,18 @@
 import { Global, Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import {
   databaseConfig,
   type DatabaseConfig,
-} from '../config/database.config.js';
+} from './config/database.config.js';
 import { DATABASE, DATABASE_POOL } from './database.constants.js';
 import { DatabaseLifecycleService } from './database-lifecycle.service.js';
 import * as schema from './schema.js';
 
 @Global()
 @Module({
+  imports: [ConfigModule.forFeature(databaseConfig)],
   providers: [
     {
       provide: DATABASE_POOL,

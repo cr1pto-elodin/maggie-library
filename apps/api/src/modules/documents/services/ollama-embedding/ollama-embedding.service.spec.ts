@@ -1,6 +1,6 @@
 import type { HttpService } from '@nestjs/axios';
 import { of, throwError } from 'rxjs';
-import type { OllamaConfig } from '../../../../config/ollama.config.js';
+import type { OllamaConfig } from '../../config/ollama.config.js';
 import { OllamaEmbeddingService } from './ollama-embedding.service.js';
 
 describe('OllamaEmbeddingService', () => {

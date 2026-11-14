@@ -2,7 +2,7 @@ import { registerAs, type ConfigType } from '@nestjs/config';
 import {
   readNonNegativeInteger,
   readPositiveInteger,
-} from './environment.validation.js';
+} from '../../../config/environment/environment-reader.js';
 
 export const documentsConfig = registerAs('documents', () => {
   const chunkSize = readPositiveInteger('DOCUMENT_CHUNK_SIZE', 1_200);

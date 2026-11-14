@@ -3,7 +3,7 @@ import {
   readHttpUrl,
   readNonEmptyString,
   readPositiveInteger,
-} from './environment.validation.js';
+} from './environment/environment-reader.js';
 
 export const appConfig = registerAs('app', () => {
   const apiPrefix = readNonEmptyString('API_PREFIX', 'api').replace(

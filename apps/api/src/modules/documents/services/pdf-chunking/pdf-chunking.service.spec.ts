@@ -1,4 +1,4 @@
-import type { DocumentsConfig } from '../../../../config/documents.config.js';
+import type { DocumentsConfig } from '../../config/documents.config.js';
 import type { PdfExtractionResult } from '../../models/pdf-extraction.model.js';
 import { PdfChunkingService } from './pdf-chunking.service.js';
 

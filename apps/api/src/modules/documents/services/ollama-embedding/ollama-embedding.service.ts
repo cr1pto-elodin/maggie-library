@@ -1,10 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Inject, Injectable } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
-import {
-  ollamaConfig,
-  type OllamaConfig,
-} from '../../../../config/ollama.config.js';
+import { ollamaConfig, type OllamaConfig } from '../../config/ollama.config.js';
 import type { OllamaEmbeddingResult } from '../../models/ollama-embedding.model.js';
 
 @Injectable()

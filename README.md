@@ -49,13 +49,13 @@ maggie-library/
 │   ├── api/                         # NestJS API
 │   │   ├── drizzle/                # Versioned SQL migrations
 │   │   └── src/
-│   │       ├── config/              # Typed configuration and validation
-│   │       ├── database/            # Connection, schema, and database types
+│   │       ├── config/              # App bootstrap and environment readers
+│   │       ├── database/            # Database config, connection, and schema
 │   │       ├── modules/
-│   │       │   ├── documents/       # Extraction, chunking, and embeddings
+│   │       │   ├── documents/       # Config, extraction, chunking, and embeddings
 │   │       │   └── health/          # Basic API health check
 │   │       └── shared/
-│   │           └── http/            # Shared HTTP client
+│   │           └── http/            # Shared HTTP config and client
 │   └── web/                         # React + Vite interface
 └── README.md
 ```
@@ -266,9 +266,9 @@ Extraction, chunking, and embedding generation happen within the same request. T
 
 `HttpClientModule` centralizes transport settings such as timeout. The Ollama URL remains in integration-specific configuration so future HTTP clients are not coupled to the same server.
 
-### Centralized Configuration
+### Configuration Ownership
 
-Services consume typed configuration through dependency injection. Environment access, defaults, and validation are restricted to the `config/` layer, preventing operational rules from spreading through business logic.
+Services consume typed configuration through dependency injection. Generic environment reading and validation remain in the root `config/` layer, while each configuration namespace is registered by the module that owns it. Database, documents, Ollama, and HTTP settings therefore evolve with their consumers instead of accumulating in a global registry.
 
 ### Relational and Vector Schema
 

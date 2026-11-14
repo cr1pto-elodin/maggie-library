@@ -1,13 +1,13 @@
 import { HttpModule } from '@nestjs/axios';
 import { Global, Module } from '@nestjs/common';
-import { ConfigurationModule } from '../../config/configuration.module.js';
-import { httpConfig, type HttpConfig } from '../../config/http.config.js';
+import { ConfigModule } from '@nestjs/config';
+import { httpConfig, type HttpConfig } from './config/http.config.js';
 
 @Global()
 @Module({
   imports: [
     HttpModule.registerAsync({
-      imports: [ConfigurationModule],
+      imports: [ConfigModule.forFeature(httpConfig)],
       inject: [httpConfig.KEY],
       useFactory: (config: HttpConfig) => ({
         timeout: config.timeoutMs,

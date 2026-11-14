@@ -8,7 +8,7 @@ import { appConfig, type AppConfig } from './../src/config/app.config.js';
 import {
   documentsConfig,
   type DocumentsConfig,
-} from './../src/config/documents.config.js';
+} from './../src/modules/documents/config/documents.config.js';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication<App>;
