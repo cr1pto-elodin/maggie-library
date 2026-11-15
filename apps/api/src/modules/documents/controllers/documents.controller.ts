@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { EmbedDocumentResponseDto } from '../dtos/embed-document-response.dto.js';
+import type { IndexDocumentResponseDto } from '../dtos/index-document-response.dto.js';
 import type { PdfUpload } from '../models/pdf-upload.model.js';
+import { DocumentIndexingService } from '../services/document-indexing/document-indexing.service.js';
 import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
 import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
@@ -16,10 +18,19 @@ import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.
 @Controller('documents')
 export class DocumentsController {
   constructor(
+    private readonly documentIndexingService: DocumentIndexingService,
     private readonly pdfExtractionService: PdfExtractionService,
     private readonly pdfChunkingService: PdfChunkingService,
     private readonly ollamaEmbeddingService: OllamaEmbeddingService,
   ) {}
+
+  @Post('index')
+  @UseInterceptors(FileInterceptor('file'))
+  index(@UploadedFile() file?: PdfUpload): Promise<IndexDocumentResponseDto> {
+    this.validateFile(file);
+
+    return this.documentIndexingService.index(file);
+  }
 
   @Post('extract')
   @UseInterceptors(FileInterceptor('file'))

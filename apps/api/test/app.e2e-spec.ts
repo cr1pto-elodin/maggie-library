@@ -9,16 +9,31 @@ import {
   documentsConfig,
   type DocumentsConfig,
 } from './../src/modules/documents/config/documents.config.js';
+import { DocumentIndexingService } from './../src/modules/documents/services/document-indexing/document-indexing.service.js';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication<App>;
   let apiPrefix: string;
   let maxFileSizeBytes: number;
+  const indexingService = {
+    index: vi.fn().mockResolvedValue({
+      documentId: 'document-id',
+      status: 'indexed',
+      originalName: 'fixture.pdf',
+      pageCount: 1,
+      chunkCount: 1,
+      embeddingModel: 'embeddinggemma',
+      embeddingDimensions: 768,
+    }),
+  };
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(DocumentIndexingService)
+      .useValue(indexingService)
+      .compile();
 
     app = moduleFixture.createNestApplication();
     const applicationConfig = app.get<AppConfig>(appConfig.KEY);
@@ -51,6 +66,32 @@ describe('HealthController (e2e)', () => {
       });
   });
 
+  it('/api/documents/index (POST)', async () => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/index`)
+      .attach('file', createPdfFixture(), {
+        filename: 'fixture.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201)
+      .expect({
+        documentId: 'document-id',
+        status: 'indexed',
+        originalName: 'fixture.pdf',
+        pageCount: 1,
+        chunkCount: 1,
+        embeddingModel: 'embeddinggemma',
+        embeddingDimensions: 768,
+      });
+
+    expect(indexingService.index).toHaveBeenCalledWith(
+      expect.objectContaining({
+        originalname: 'fixture.pdf',
+        mimetype: 'application/pdf',
+      }),
+    );
+  });
+
   it('/api/documents/extract (POST) rejects oversized PDFs', async () => {
     await request(app.getHttpServer())
       .post(`/${apiPrefix}/documents/extract`)
@@ -62,6 +103,7 @@ describe('HealthController (e2e)', () => {
   });
 
   afterEach(async () => {
+    indexingService.index.mockClear();
     await app.close();
   });
 });

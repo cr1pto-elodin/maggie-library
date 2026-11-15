@@ -2,7 +2,7 @@
 
 Maggie Library is a study project about **Retrieval-Augmented Generation (RAG)** running locally with [Ollama](https://ollama.com/). Its goal is to build and understand every stage of the architecture—from reading documents to semantic retrieval and generating answers grounded in sources.
 
-The project prioritizes incremental implementations, verifiable contracts, and explanations of architectural decisions. At this point, the ingestion pipeline can extract PDFs, create chunks, and generate embeddings. The PostgreSQL and pgvector foundation is available, but the pipeline does not persist or query vectors yet.
+The project prioritizes incremental implementations, verifiable contracts, and explanations of architectural decisions. At this point, the ingestion pipeline can extract PDFs, create chunks, generate embeddings, and persist them in PostgreSQL with pgvector. Similarity search is not implemented yet.
 
 ## Current Status
 
@@ -18,12 +18,12 @@ Already implemented:
 - global HTTP client with a configurable timeout;
 - local PostgreSQL 17 infrastructure with pgvector;
 - typed Drizzle schema and versioned database migrations;
+- transactional and idempotent document indexing;
 - web interface for extraction and embedding generation;
 - unit and end-to-end HTTP tests.
 
 Not implemented yet:
 
-- document and vector persistence through the ingestion pipeline;
 - similarity search;
 - answer generation using retrieved passages;
 - citations and conversation history.
@@ -35,10 +35,11 @@ PDF
  └─ text and metadata extraction by page
      └─ normalization and chunking
          └─ embedding generation through Ollama
-             └─ HTTP response with chunks and vectors
+             └─ transactional document and vector persistence
+                 └─ HTTP response with an indexing summary
 ```
 
-The flow currently ends with the HTTP response. Vectors are not stored yet.
+The `/documents/index` flow stores the document and every chunk atomically. The diagnostic `/documents/embed` route remains available and returns chunks with vectors without persisting them.
 
 ## Architecture
 
@@ -52,7 +53,7 @@ maggie-library/
 │   │       ├── config/              # App bootstrap and environment readers
 │   │       ├── database/            # Database config, connection, and schema
 │   │       ├── modules/
-│   │       │   ├── documents/       # Config, extraction, chunking, and embeddings
+│   │       │   ├── documents/       # Ingestion, persistence, and document contracts
 │   │       │   └── health/          # Basic API health check
 │   │       └── shared/
 │   │           └── http/            # Shared HTTP config and client
@@ -64,6 +65,7 @@ Inside `documents/services`, each capability keeps its implementation and tests 
 
 ```text
 services/
+├── document-indexing/
 ├── ollama-embedding/
 ├── pdf-chunking/
 └── pdf-extraction/
@@ -213,11 +215,12 @@ Default addresses:
 
 ## Current Routes
 
-| Method | Route                    | Description                           |
-| ------ | ------------------------ | ------------------------------------- |
-| `GET`  | `/api/health`            | Checks whether the API is responding  |
-| `POST` | `/api/documents/extract` | Extracts text and metadata from a PDF |
-| `POST` | `/api/documents/embed`   | Extracts, chunks, and embeds a PDF    |
+| Method | Route                    | Description                                 |
+| ------ | ------------------------ | ------------------------------------------- |
+| `GET`  | `/api/health`            | Checks whether the API is responding        |
+| `POST` | `/api/documents/extract` | Extracts text and metadata from a PDF       |
+| `POST` | `/api/documents/embed`   | Extracts, chunks, and embeds a PDF          |
+| `POST` | `/api/documents/index`   | Idempotently persists a PDF and its vectors |
 
 The document endpoints accept `multipart/form-data` with the PDF in the `file` field.
 
@@ -226,7 +229,7 @@ Example:
 ```bash
 curl -X POST \
   -F "file=@./document.pdf;type=application/pdf" \
-  http://localhost:4000/api/documents/embed
+  http://localhost:4000/api/documents/index
 ```
 
 ## Validation
@@ -276,17 +279,21 @@ Documents and chunks use separate tables so document-level metadata is not repea
 
 The embedding column is fixed at `vector(768)`, matching the current `embeddinggemma` output. Changing to a model with another dimension will require an explicit migration rather than silently mixing incompatible vectors.
 
+### Content-Based Idempotency
+
+The API calculates the PDF SHA-256 checksum before extraction or embedding generation. If the content is already indexed, it returns the stored document summary without repeating expensive work. The database unique constraint is the final concurrency guard: simultaneous requests use `ON CONFLICT DO NOTHING`, and the request that loses the race returns the document committed by the winner.
+
+For now, identical content represents the same document even when uploaded with another filename. Reindexing with different chunk settings or another embedding model will be an explicit document lifecycle operation instead of creating implicit duplicate records.
+
 ### Exact Search Before Approximate Indexing
 
 The initial schema does not create an HNSW or IVFFlat index. pgvector performs exact nearest-neighbor search by default, which is easier to evaluate and preserves full recall while the collection is small. Approximate indexing will be considered after retrieval quality and query latency are measured with representative data.
 
 ## Roadmap
 
-### 1. Vector Persistence
+### 1. Document Lifecycle
 
-- connect the existing ingestion pipeline to the database repository;
-- store documents, metadata, chunks, and embeddings;
-- use checksums to avoid duplicate indexing;
+- expose indexed document listing and details;
 - define document reindexing and deletion.
 
 ### 2. Semantic Retrieval

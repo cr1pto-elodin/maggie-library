@@ -1,4 +1,5 @@
 import { BadGatewayException, BadRequestException } from '@nestjs/common';
+import { DocumentIndexingService } from '../services/document-indexing/document-indexing.service.js';
 import { DocumentsController } from './documents.controller.js';
 import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
@@ -16,14 +17,40 @@ describe('DocumentsController', () => {
     permissions: null,
     outline: [],
   };
+  const file = {
+    buffer: Buffer.from('pdf'),
+    mimetype: 'application/pdf',
+    originalname: 'fixture.pdf',
+    size: 3,
+  };
+
+  it('indexes a PDF and returns the persisted document summary', async () => {
+    const response = {
+      documentId: 'document-id',
+      status: 'indexed' as const,
+      originalName: 'fixture.pdf',
+      pageCount: 1,
+      chunkCount: 1,
+      embeddingModel: 'embeddinggemma',
+      embeddingDimensions: 768,
+    };
+    const indexingService = { index: vi.fn().mockResolvedValue(response) };
+    const controller = createController(
+      { extract: vi.fn() },
+      undefined,
+      undefined,
+      indexingService,
+    );
+
+    await expect(controller.index(file)).resolves.toEqual(response);
+    expect(indexingService.index).toHaveBeenCalledWith(file);
+  });
 
   it('extracts a PDF and returns the service result', async () => {
     const service = {
       extract: vi.fn().mockResolvedValue(extractionResult),
     };
     const controller = createController(service);
-    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
-
     await expect(controller.extract(file)).resolves.toEqual(extractionResult);
     expect(service.extract).toHaveBeenCalledWith(file.buffer);
   });
@@ -38,9 +65,9 @@ describe('DocumentsController', () => {
 
   it('rejects a non-PDF file', async () => {
     const controller = createController({ extract: vi.fn() });
-    const file = { buffer: Buffer.from('text'), mimetype: 'text/plain' };
+    const invalidFile = { ...file, mimetype: 'text/plain' };
 
-    await expect(controller.extract(file)).rejects.toThrow(
+    await expect(controller.extract(invalidFile)).rejects.toThrow(
       'O arquivo precisa ser um PDF.',
     );
   });
@@ -50,8 +77,6 @@ describe('DocumentsController', () => {
       extract: vi.fn().mockRejectedValue(new Error('invalid PDF')),
     };
     const controller = createController(service);
-    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
-
     await expect(controller.extract(file)).rejects.toThrow(
       'Não foi possível extrair o conteúdo do arquivo PDF.',
     );
@@ -80,8 +105,6 @@ describe('DocumentsController', () => {
       chunkingService,
       embeddingService,
     );
-    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
-
     await expect(controller.embed(file)).resolves.toEqual({
       model: 'embeddinggemma',
       dimensions: 2,
@@ -103,8 +126,6 @@ describe('DocumentsController', () => {
       { chunk: vi.fn().mockReturnValue([]) },
       embeddingService,
     );
-    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
-
     await expect(controller.embed(file)).rejects.toThrow(
       'O PDF não possui texto para gerar embeddings.',
     );
@@ -118,8 +139,6 @@ describe('DocumentsController', () => {
       { chunk: vi.fn() },
       embeddingService,
     );
-    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
-
     await expect(controller.embed(file)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -139,8 +158,6 @@ describe('DocumentsController', () => {
       },
       { embed: vi.fn().mockRejectedValue(new Error('Ollama unavailable')) },
     );
-    const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
-
     await expect(controller.embed(file)).rejects.toBeInstanceOf(
       BadGatewayException,
     );
@@ -154,8 +171,10 @@ function createController(
   extractionService: { extract: ReturnType<typeof vi.fn> },
   chunkingService: { chunk: ReturnType<typeof vi.fn> } = { chunk: vi.fn() },
   embeddingService: { embed: ReturnType<typeof vi.fn> } = { embed: vi.fn() },
+  indexingService: { index: ReturnType<typeof vi.fn> } = { index: vi.fn() },
 ) {
   return new DocumentsController(
+    indexingService as unknown as DocumentIndexingService,
     extractionService as unknown as PdfExtractionService,
     chunkingService as unknown as PdfChunkingService,
     embeddingService as unknown as OllamaEmbeddingService,

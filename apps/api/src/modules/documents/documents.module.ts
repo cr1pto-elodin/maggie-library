@@ -7,6 +7,8 @@ import {
 } from './config/documents.config.js';
 import { ollamaConfig } from './config/ollama.config.js';
 import { DocumentsController } from './controllers/documents.controller.js';
+import { DocumentsRepository } from './repositories/documents.repository.js';
+import { DocumentIndexingService } from './services/document-indexing/document-indexing.service.js';
 import { OllamaEmbeddingService } from './services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from './services/pdf-chunking/pdf-chunking.service.js';
 import { PdfExtractionService } from './services/pdf-extraction/pdf-extraction.service.js';
@@ -26,7 +28,13 @@ import { PdfExtractionService } from './services/pdf-extraction/pdf-extraction.s
     }),
   ],
   controllers: [DocumentsController],
-  providers: [OllamaEmbeddingService, PdfChunkingService, PdfExtractionService],
+  providers: [
+    DocumentIndexingService,
+    DocumentsRepository,
+    OllamaEmbeddingService,
+    PdfChunkingService,
+    PdfExtractionService,
+  ],
   exports: [OllamaEmbeddingService, PdfExtractionService],
 })
 export class DocumentsModule {}
