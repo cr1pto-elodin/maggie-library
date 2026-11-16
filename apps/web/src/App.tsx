@@ -14,7 +14,7 @@ function App() {
 
   const formattedResult = result ? JSON.stringify(result, null, 2) : ''
 
-  async function handleRequest(endpoint: 'extract' | 'embed') {
+  async function handleRequest(endpoint: 'extract' | 'embed' | 'index') {
     if (!file) {
       setError('Selecione um arquivo PDF antes de continuar.')
       return
@@ -78,7 +78,8 @@ function App() {
         <p className="eyebrow">Maggie Library</p>
         <h1>Extração de documentos</h1>
         <p className="intro">
-          Envie um PDF para extrair o texto ou gerar embeddings com o Ollama.
+          Envie um PDF para extrair o texto, gerar embeddings ou indexar o
+          documento.
         </p>
 
         <form onSubmit={handleSubmit} className="upload-form">
@@ -106,6 +107,13 @@ function App() {
               onClick={() => void handleRequest('embed')}
             >
               {isLoading ? 'Processando...' : 'Gerar embeddings'}
+            </button>
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => void handleRequest('index')}
+            >
+              {isLoading ? 'Processando...' : 'Indexar PDF'}
             </button>
             <button type="button" className="secondary" onClick={handleClear}>
               Limpar
