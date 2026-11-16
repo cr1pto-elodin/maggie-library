@@ -1,6 +1,7 @@
 import type { DocumentSummary } from '../../../../services/documents.types'
-import { useDocuments } from './hooks/use-documents'
-import type { LibraryDocument } from './library.types'
+import { getRequestErrorMessage } from '../../../../services/http-client'
+import type { LibraryDocument, LibraryStatus } from './library.types'
+import { useDocumentsQuery } from './queries/use-documents-query'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
@@ -40,12 +41,24 @@ function toLibraryDocument(document: DocumentSummary): LibraryDocument {
 }
 
 export function useLibraryController() {
-  const { documents, errorMessage, reload, status } = useDocuments()
+  const documentsQuery = useDocumentsQuery()
+  const documents = documentsQuery.data ?? []
+
+  const status: LibraryStatus = documentsQuery.isPending
+    ? 'loading'
+    : documentsQuery.isError
+      ? 'error'
+      : 'success'
 
   return {
     documents: documents.map(toLibraryDocument),
-    errorMessage,
-    reload,
+    errorMessage: documentsQuery.error
+      ? getRequestErrorMessage(
+          documentsQuery.error,
+          'Não foi possível carregar os documentos.',
+        )
+      : '',
+    reload: () => void documentsQuery.refetch(),
     status,
     totalChunks: documents.reduce(
       (total, document) => total + document.chunkCount,
@@ -53,4 +66,3 @@ export function useLibraryController() {
     ),
   }
 }
-

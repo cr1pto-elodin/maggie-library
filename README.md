@@ -61,6 +61,7 @@ maggie-library/
 │       └── src/
 │           ├── config/              # Environment reading and HTTP config
 │           ├── pages/sign-in/       # Signed-in layout and feature modules
+│           ├── providers/           # Application-level React providers
 │           └── services/            # API clients and response contracts
 └── README.md
 ```
@@ -96,6 +97,7 @@ services/
 - TypeScript;
 - Vite;
 - Axios;
+- TanStack Query;
 - ESLint.
 
 ### Local AI
@@ -248,6 +250,17 @@ curl "http://localhost:4000/api/documents?page=1&limit=20"
 ```
 
 The default page size is 20 and the maximum is 100. Detail responses include chunks ordered by their original position, but neither read endpoint exposes embedding vectors.
+
+## Web Data Flow
+
+The web application separates remote data responsibilities by layer:
+
+- services perform typed Axios requests without UI or cache state;
+- queries define cache keys and coordinate remote reads through TanStack Query;
+- module controllers adapt query results into component-facing state and actions;
+- components render the controller contract without depending on Axios or TanStack Query.
+
+Future write operations should use feature-specific mutations. After a successful index, deletion, or reindex operation, the mutation must invalidate `documentsQueryKeys.all` instead of updating unrelated components directly. Mutations are introduced only when their corresponding user action exists.
 
 ## Validation
 
