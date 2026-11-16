@@ -105,6 +105,43 @@ describe('HealthController (e2e)', () => {
       });
   });
 
+  it('/api/documents/extract (POST) requires a file', async () => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/extract`)
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe('Envie um arquivo PDF no campo "file".');
+      });
+  });
+
+  it('/api/documents/extract (POST) validates the file signature', async () => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/extract`)
+      .attach('file', Buffer.from('not a PDF'), {
+        filename: 'spoofed.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe('O arquivo precisa ser um PDF.');
+      });
+  });
+
+  it('/api/documents/extract (POST) translates extraction errors', async () => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/extract`)
+      .attach('file', Buffer.from('%PDF-1.4\ninvalid'), {
+        filename: 'invalid.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe(
+          'Não foi possível extrair o conteúdo do arquivo PDF.',
+        );
+      });
+  });
+
   it('/api/documents/index (POST)', async () => {
     await request(app.getHttpServer())
       .post(`/${apiPrefix}/documents/index`)

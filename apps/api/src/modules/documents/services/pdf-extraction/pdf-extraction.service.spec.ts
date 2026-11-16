@@ -1,3 +1,4 @@
+import { PdfExtractionError } from '../../exceptions/pdf-extraction.error.js';
 import { PdfExtractionService } from './pdf-extraction.service.js';
 
 describe('PdfExtractionService', () => {
@@ -23,8 +24,11 @@ describe('PdfExtractionService', () => {
   });
 
   it('rejects an empty file', async () => {
-    await expect(service.extract(Buffer.alloc(0))).rejects.toThrow(
-      'O arquivo PDF não pode estar vazio.',
+    const result = service.extract(Buffer.alloc(0));
+
+    await expect(result).rejects.toBeInstanceOf(PdfExtractionError);
+    await expect(result).rejects.toThrow(
+      'Não foi possível extrair o conteúdo do arquivo PDF.',
     );
   });
 });

@@ -1,4 +1,5 @@
-import { BadGatewayException, BadRequestException } from '@nestjs/common';
+import { BadGatewayException } from '@nestjs/common';
+import { PdfExtractionError } from '../exceptions/pdf-extraction.error.js';
 import { DocumentIndexingService } from '../services/document-indexing/document-indexing.service.js';
 import { DocumentsQueryService } from '../services/documents-query/documents-query.service.js';
 import { DocumentsController } from './documents.controller.js';
@@ -95,31 +96,14 @@ describe('DocumentsController', () => {
     expect(service.extract).toHaveBeenCalledWith(file.buffer);
   });
 
-  it('rejects a missing file', async () => {
-    const controller = createController({ extract: vi.fn() });
-
-    await expect(controller.extract()).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-  });
-
-  it('rejects a non-PDF file', async () => {
-    const controller = createController({ extract: vi.fn() });
-    const invalidFile = { ...file, mimetype: 'text/plain' };
-
-    await expect(controller.extract(invalidFile)).rejects.toThrow(
-      'O arquivo precisa ser um PDF.',
-    );
-  });
-
-  it('translates extraction errors to a bad request', async () => {
+  it('propagates extraction errors to the exception filter', async () => {
+    const extractionError = new PdfExtractionError();
     const service = {
-      extract: vi.fn().mockRejectedValue(new Error('invalid PDF')),
+      extract: vi.fn().mockRejectedValue(extractionError),
     };
     const controller = createController(service);
-    await expect(controller.extract(file)).rejects.toThrow(
-      'Não foi possível extrair o conteúdo do arquivo PDF.',
-    );
+
+    await expect(controller.extract(file)).rejects.toBe(extractionError);
   });
 
   it('generates embeddings for the extracted PDF chunks', async () => {
@@ -172,19 +156,15 @@ describe('DocumentsController', () => {
     expect(embeddingService.embed).not.toHaveBeenCalled();
   });
 
-  it('reports extraction errors during embedding as a bad request', async () => {
+  it('propagates extraction errors during embedding', async () => {
+    const extractionError = new PdfExtractionError();
     const embeddingService = { embed: vi.fn() };
     const controller = createController(
-      { extract: vi.fn().mockRejectedValue(new Error('invalid PDF')) },
+      { extract: vi.fn().mockRejectedValue(extractionError) },
       { chunk: vi.fn() },
       embeddingService,
     );
-    await expect(controller.embed(file)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    await expect(controller.embed(file)).rejects.toThrow(
-      'Não foi possível extrair o conteúdo do arquivo PDF.',
-    );
+    await expect(controller.embed(file)).rejects.toBe(extractionError);
     expect(embeddingService.embed).not.toHaveBeenCalled();
   });
 

@@ -8,12 +8,15 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseFilters,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { EmbedDocumentResponseDto } from '../dtos/embed-document-response.dto.js';
 import type { IndexDocumentResponseDto } from '../dtos/index-document-response.dto.js';
+import { PdfExtractionExceptionFilter } from '../filters/pdf-extraction-exception.filter.js';
 import type { PdfUpload } from '../models/pdf-upload.model.js';
+import { PdfUploadPipe } from '../pipes/pdf-upload.pipe.js';
 import { DocumentIndexingService } from '../services/document-indexing/document-indexing.service.js';
 import { DocumentsQueryService } from '../services/documents-query/documents-query.service.js';
 import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
@@ -21,6 +24,7 @@ import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.servic
 import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
 
 @Controller('documents')
+@UseFilters(PdfExtractionExceptionFilter)
 export class DocumentsController {
   constructor(
     private readonly documentIndexingService: DocumentIndexingService,
@@ -42,28 +46,24 @@ export class DocumentsController {
 
   @Post('index')
   @UseInterceptors(FileInterceptor('file'))
-  index(@UploadedFile() file?: PdfUpload): Promise<IndexDocumentResponseDto> {
-    this.validateFile(file);
-
+  index(
+    @UploadedFile(PdfUploadPipe) file: PdfUpload,
+  ): Promise<IndexDocumentResponseDto> {
     return this.documentIndexingService.index(file);
   }
 
   @Post('extract')
   @UseInterceptors(FileInterceptor('file'))
-  async extract(@UploadedFile() file?: PdfUpload) {
-    this.validateFile(file);
-
-    return this.extractPdf(file.buffer);
+  extract(@UploadedFile(PdfUploadPipe) file: PdfUpload) {
+    return this.pdfExtractionService.extract(file.buffer);
   }
 
   @Post('embed')
   @UseInterceptors(FileInterceptor('file'))
   async embed(
-    @UploadedFile() file?: PdfUpload,
+    @UploadedFile(PdfUploadPipe) file: PdfUpload,
   ): Promise<EmbedDocumentResponseDto> {
-    this.validateFile(file);
-
-    const document = await this.extractPdf(file.buffer);
+    const document = await this.pdfExtractionService.extract(file.buffer);
     const chunks = this.pdfChunkingService.chunk(document);
 
     if (chunks.length === 0) {
@@ -88,26 +88,6 @@ export class DocumentsController {
     } catch {
       throw new BadGatewayException(
         'Não foi possível gerar embeddings usando o Ollama.',
-      );
-    }
-  }
-
-  private validateFile(file?: PdfUpload): asserts file is PdfUpload {
-    if (!file) {
-      throw new BadRequestException('Envie um arquivo PDF no campo "file".');
-    }
-
-    if (file.mimetype !== 'application/pdf') {
-      throw new BadRequestException('O arquivo precisa ser um PDF.');
-    }
-  }
-
-  private async extractPdf(buffer: Buffer) {
-    try {
-      return await this.pdfExtractionService.extract(buffer);
-    } catch {
-      throw new BadRequestException(
-        'Não foi possível extrair o conteúdo do arquivo PDF.',
       );
     }
   }

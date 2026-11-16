@@ -40,7 +40,7 @@ export class DocumentIndexingService {
       return this.toResponse(existingDocument, 'already_indexed');
     }
 
-    const document = await this.extractPdf(file.buffer);
+    const document = await this.pdfExtractionService.extract(file.buffer);
     const chunks = this.pdfChunkingService.chunk(document);
 
     if (chunks.length === 0) {
@@ -80,16 +80,6 @@ export class DocumentIndexingService {
       result.document,
       result.created ? 'indexed' : 'already_indexed',
     );
-  }
-
-  private async extractPdf(buffer: Buffer) {
-    try {
-      return await this.pdfExtractionService.extract(buffer);
-    } catch {
-      throw new BadRequestException(
-        'Não foi possível extrair o conteúdo do arquivo PDF.',
-      );
-    }
   }
 
   private async generateEmbeddings(input: string[]) {

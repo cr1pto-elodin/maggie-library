@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PDFParse, type DateNode, type OutlineNode } from 'pdf-parse';
+import { PdfExtractionError } from '../../exceptions/pdf-extraction.error.js';
 import type {
   PdfExtractionResult,
   PdfOutlineItem,
@@ -8,47 +9,51 @@ import type {
 @Injectable()
 export class PdfExtractionService {
   async extract(buffer: Buffer): Promise<PdfExtractionResult> {
-    if (buffer.length === 0) {
-      throw new Error('O arquivo PDF não pode estar vazio.');
-    }
-
-    const parser = new PDFParse({ data: buffer });
-
     try {
-      const textResult = await parser.getText({
-        parseHyperlinks: true,
-        pageJoiner: '',
-      });
-      const infoResult = await parser.getInfo({ parsePageInfo: true });
+      if (buffer.length === 0) {
+        throw new Error('O arquivo PDF não pode estar vazio.');
+      }
 
-      return {
-        text: textResult.text,
-        totalPages: textResult.total,
-        pages: textResult.pages.map((page) => {
-          const pageInfo = infoResult.pages.find(
-            (item) => item.pageNumber === page.num,
-          );
+      const parser = new PDFParse({ data: buffer });
 
-          return {
-            pageNumber: page.num,
-            pageLabel: pageInfo?.pageLabel ?? null,
-            text: page.text,
-            width: pageInfo?.width ?? null,
-            height: pageInfo?.height ?? null,
-            links: pageInfo?.links ?? [],
-          };
-        }),
-        info: this.toRecord(infoResult.info),
-        metadata: infoResult.metadata
-          ? Object.fromEntries(infoResult.metadata)
-          : null,
-        dates: this.serializeDates(infoResult.getDateNode()),
-        fingerprints: infoResult.fingerprints ?? [],
-        permissions: infoResult.permission ?? null,
-        outline: this.serializeOutline(infoResult.outline ?? []),
-      };
-    } finally {
-      await parser.destroy();
+      try {
+        const textResult = await parser.getText({
+          parseHyperlinks: true,
+          pageJoiner: '',
+        });
+        const infoResult = await parser.getInfo({ parsePageInfo: true });
+
+        return {
+          text: textResult.text,
+          totalPages: textResult.total,
+          pages: textResult.pages.map((page) => {
+            const pageInfo = infoResult.pages.find(
+              (item) => item.pageNumber === page.num,
+            );
+
+            return {
+              pageNumber: page.num,
+              pageLabel: pageInfo?.pageLabel ?? null,
+              text: page.text,
+              width: pageInfo?.width ?? null,
+              height: pageInfo?.height ?? null,
+              links: pageInfo?.links ?? [],
+            };
+          }),
+          info: this.toRecord(infoResult.info),
+          metadata: infoResult.metadata
+            ? Object.fromEntries(infoResult.metadata)
+            : null,
+          dates: this.serializeDates(infoResult.getDateNode()),
+          fingerprints: infoResult.fingerprints ?? [],
+          permissions: infoResult.permission ?? null,
+          outline: this.serializeOutline(infoResult.outline ?? []),
+        };
+      } finally {
+        await parser.destroy();
+      }
+    } catch (error) {
+      throw new PdfExtractionError(error);
     }
   }
 

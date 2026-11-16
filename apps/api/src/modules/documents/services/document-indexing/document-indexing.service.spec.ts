@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { BadGatewayException, BadRequestException } from '@nestjs/common';
 import { EMBEDDING_DIMENSIONS } from '../../../../database/database.constants.js';
 import type { DocumentsConfig } from '../../config/documents.config.js';
+import { PdfExtractionError } from '../../exceptions/pdf-extraction.error.js';
 import type { IndexedDocument } from '../../models/indexed-document.model.js';
 import type { PdfUpload } from '../../models/pdf-upload.model.js';
 import { DocumentsRepository } from '../../repositories/documents.repository.js';
@@ -133,9 +134,10 @@ describe('DocumentIndexingService', () => {
     expect(embeddingService.embed).not.toHaveBeenCalled();
   });
 
-  it('translates extraction and embedding failures', async () => {
+  it('propagates extraction failures and translates embedding failures', async () => {
+    const extractionError = new PdfExtractionError();
     const extractionFailure = createService(createRepository(), {
-      extract: vi.fn().mockRejectedValue(new Error('invalid PDF')),
+      extract: vi.fn().mockRejectedValue(extractionError),
     });
     const embeddingFailure = createService(
       createRepository(),
@@ -144,9 +146,7 @@ describe('DocumentIndexingService', () => {
       { embed: vi.fn().mockRejectedValue(new Error('Ollama unavailable')) },
     );
 
-    await expect(extractionFailure.index(file)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(extractionFailure.index(file)).rejects.toBe(extractionError);
     await expect(embeddingFailure.index(file)).rejects.toBeInstanceOf(
       BadGatewayException,
     );

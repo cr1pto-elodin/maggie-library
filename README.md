@@ -9,7 +9,7 @@ The project prioritizes incremental implementations, verifiable contracts, and e
 Already implemented:
 
 - PDF file uploads;
-- configurable file type validation and size limit;
+- content-based PDF signature validation and configurable size limit;
 - text and metadata extraction by page;
 - configurable chunking with overlap;
 - embedding generation through Ollama;
@@ -275,6 +275,10 @@ Chunk size and overlap are measured in characters. This approach is simple and d
 ### Synchronous Processing
 
 Extraction, chunking, and embedding generation happen within the same request. This keeps the flow easy to observe, but it may increase latency for large documents. Queues and workers will only be introduced when there is a demonstrated need.
+
+### Layered PDF Validation and Error Translation
+
+Multer rejects oversized uploads before they continue through the request pipeline. A reusable NestJS file pipe then requires the upload and validates PDF magic bytes instead of trusting the client-provided MIME type. The extraction service reports parser failures through a domain-specific error, and a controller filter translates that error into HTTP 400 without coupling the extraction implementation to the transport layer.
 
 ### Shared HTTP Client
 
