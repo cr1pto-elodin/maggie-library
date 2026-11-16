@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException } from '@nestjs/common';
 import { DocumentIndexingService } from '../services/document-indexing/document-indexing.service.js';
+import { DocumentsQueryService } from '../services/documents-query/documents-query.service.js';
 import { DocumentsController } from './documents.controller.js';
 import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
@@ -23,6 +24,45 @@ describe('DocumentsController', () => {
     originalname: 'fixture.pdf',
     size: 3,
   };
+
+  it('delegates document listing with raw pagination parameters', async () => {
+    const response = {
+      items: [],
+      pagination: { page: 2, limit: 10, total: 0, totalPages: 0 },
+    };
+    const queryService = {
+      list: vi.fn().mockResolvedValue(response),
+      findById: vi.fn(),
+    };
+    const controller = createController(
+      { extract: vi.fn() },
+      undefined,
+      undefined,
+      undefined,
+      queryService,
+    );
+
+    await expect(controller.list('2', '10')).resolves.toBe(response);
+    expect(queryService.list).toHaveBeenCalledWith('2', '10');
+  });
+
+  it('delegates document details by id', async () => {
+    const response = { id: 'document-id', chunks: [] };
+    const queryService = {
+      list: vi.fn(),
+      findById: vi.fn().mockResolvedValue(response),
+    };
+    const controller = createController(
+      { extract: vi.fn() },
+      undefined,
+      undefined,
+      undefined,
+      queryService,
+    );
+
+    await expect(controller.findById('document-id')).resolves.toBe(response);
+    expect(queryService.findById).toHaveBeenCalledWith('document-id');
+  });
 
   it('indexes a PDF and returns the persisted document summary', async () => {
     const response = {
@@ -172,9 +212,14 @@ function createController(
   chunkingService: { chunk: ReturnType<typeof vi.fn> } = { chunk: vi.fn() },
   embeddingService: { embed: ReturnType<typeof vi.fn> } = { embed: vi.fn() },
   indexingService: { index: ReturnType<typeof vi.fn> } = { index: vi.fn() },
+  queryService: {
+    list: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+  } = { list: vi.fn(), findById: vi.fn() },
 ) {
   return new DocumentsController(
     indexingService as unknown as DocumentIndexingService,
+    queryService as unknown as DocumentsQueryService,
     extractionService as unknown as PdfExtractionService,
     chunkingService as unknown as PdfChunkingService,
     embeddingService as unknown as OllamaEmbeddingService,

@@ -31,6 +31,65 @@ describe('DocumentsRepository', () => {
     await expect(repository.findByChecksum('b'.repeat(64))).resolves.toBeNull();
   });
 
+  it('lists documents with pagination, ordering, and total count', async () => {
+    const { checksumSha256: _checksumSha256, ...documentSummary } =
+      createIndexedDocument();
+    const listChain = createListChain([documentSummary]);
+    const totalFrom = vi.fn().mockResolvedValue([{ total: 1 }]);
+    const select = vi
+      .fn()
+      .mockReturnValueOnce(listChain)
+      .mockReturnValueOnce({ from: totalFrom });
+    const repository = new DocumentsRepository({
+      select,
+    } as unknown as Database);
+
+    await expect(repository.list(20, 10)).resolves.toEqual({
+      items: [documentSummary],
+      total: 1,
+    });
+    expect(documentSummary).not.toHaveProperty('checksumSha256');
+    expect(listChain.limit).toHaveBeenCalledWith(10);
+    expect(listChain.offset).toHaveBeenCalledWith(20);
+    expect(listChain.orderBy).toHaveBeenCalledOnce();
+  });
+
+  it('returns document details with ordered chunks and no embeddings', async () => {
+    const indexedDocument = createIndexedDocument();
+    const chunks = [
+      {
+        id: 'chunk-id',
+        index: 0,
+        pageNumber: 1,
+        content: 'Trecho',
+        createdAt: new Date('2026-11-15T00:00:00Z'),
+      },
+    ];
+    const select = vi
+      .fn()
+      .mockReturnValueOnce(createSelectChain([indexedDocument]))
+      .mockReturnValueOnce(createChunksChain(chunks));
+    const repository = new DocumentsRepository({
+      select,
+    } as unknown as Database);
+
+    await expect(repository.findById(indexedDocument.id)).resolves.toEqual({
+      ...indexedDocument,
+      chunks,
+    });
+    expect(chunks[0]).not.toHaveProperty('embedding');
+  });
+
+  it('does not query chunks when the document does not exist', async () => {
+    const select = vi.fn().mockReturnValue(createSelectChain([]));
+    const repository = new DocumentsRepository({
+      select,
+    } as unknown as Database);
+
+    await expect(repository.findById('missing-id')).resolves.toBeNull();
+    expect(select).toHaveBeenCalledOnce();
+  });
+
   it('inserts the document and all chunks in the same transaction', async () => {
     const insertedDocument = createIndexedDocument();
     const documentValues = vi.fn().mockReturnValue({
@@ -142,6 +201,46 @@ function createSelectChain(result: IndexedDocument[]) {
   chain.leftJoin.mockReturnValue(chain);
   chain.where.mockReturnValue(chain);
   chain.groupBy.mockReturnValue(chain);
+
+  return chain;
+}
+
+function createListChain(
+  result: Array<Omit<IndexedDocument, 'checksumSha256'>>,
+) {
+  const chain = {
+    from: vi.fn(),
+    leftJoin: vi.fn(),
+    groupBy: vi.fn(),
+    orderBy: vi.fn(),
+    limit: vi.fn(),
+    offset: vi.fn().mockResolvedValue(result),
+  };
+  chain.from.mockReturnValue(chain);
+  chain.leftJoin.mockReturnValue(chain);
+  chain.groupBy.mockReturnValue(chain);
+  chain.orderBy.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+
+  return chain;
+}
+
+function createChunksChain(
+  result: Array<{
+    id: string;
+    index: number;
+    pageNumber: number;
+    content: string;
+    createdAt: Date;
+  }>,
+) {
+  const chain = {
+    from: vi.fn(),
+    where: vi.fn(),
+    orderBy: vi.fn().mockResolvedValue(result),
+  };
+  chain.from.mockReturnValue(chain);
+  chain.where.mockReturnValue(chain);
 
   return chain;
 }

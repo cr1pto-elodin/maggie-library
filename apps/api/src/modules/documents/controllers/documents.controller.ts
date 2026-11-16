@@ -2,7 +2,11 @@ import {
   BadGatewayException,
   BadRequestException,
   Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -11,6 +15,7 @@ import type { EmbedDocumentResponseDto } from '../dtos/embed-document-response.d
 import type { IndexDocumentResponseDto } from '../dtos/index-document-response.dto.js';
 import type { PdfUpload } from '../models/pdf-upload.model.js';
 import { DocumentIndexingService } from '../services/document-indexing/document-indexing.service.js';
+import { DocumentsQueryService } from '../services/documents-query/documents-query.service.js';
 import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
 import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
@@ -19,10 +24,21 @@ import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.
 export class DocumentsController {
   constructor(
     private readonly documentIndexingService: DocumentIndexingService,
+    private readonly documentsQueryService: DocumentsQueryService,
     private readonly pdfExtractionService: PdfExtractionService,
     private readonly pdfChunkingService: PdfChunkingService,
     private readonly ollamaEmbeddingService: OllamaEmbeddingService,
   ) {}
+
+  @Get()
+  list(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.documentsQueryService.list(page, limit);
+  }
+
+  @Get(':id')
+  findById(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.documentsQueryService.findById(id);
+  }
 
   @Post('index')
   @UseInterceptors(FileInterceptor('file'))

@@ -66,6 +66,7 @@ Inside `documents/services`, each capability keeps its implementation and tests 
 ```text
 services/
 ├── document-indexing/
+├── documents-query/
 ├── ollama-embedding/
 ├── pdf-chunking/
 └── pdf-extraction/
@@ -218,6 +219,8 @@ Default addresses:
 | Method | Route                    | Description                                 |
 | ------ | ------------------------ | ------------------------------------------- |
 | `GET`  | `/api/health`            | Checks whether the API is responding        |
+| `GET`  | `/api/documents`         | Lists indexed documents with pagination     |
+| `GET`  | `/api/documents/:id`     | Returns document details and text chunks    |
 | `POST` | `/api/documents/extract` | Extracts text and metadata from a PDF       |
 | `POST` | `/api/documents/embed`   | Extracts, chunks, and embeds a PDF          |
 | `POST` | `/api/documents/index`   | Idempotently persists a PDF and its vectors |
@@ -231,6 +234,14 @@ curl -X POST \
   -F "file=@./document.pdf;type=application/pdf" \
   http://localhost:4000/api/documents/index
 ```
+
+List documents with optional `page` and `limit` parameters:
+
+```bash
+curl "http://localhost:4000/api/documents?page=1&limit=20"
+```
+
+The default page size is 20 and the maximum is 100. Detail responses include chunks ordered by their original position, but neither read endpoint exposes embedding vectors.
 
 ## Validation
 
@@ -285,6 +296,10 @@ The API calculates the PDF SHA-256 checksum before extraction or embedding gener
 
 For now, identical content represents the same document even when uploaded with another filename. Reindexing with different chunk settings or another embedding model will be an explicit document lifecycle operation instead of creating implicit duplicate records.
 
+### Read Models Without Vectors
+
+Document list and detail endpoints select only metadata and human-readable chunk fields. Embeddings remain an internal retrieval concern because returning hundreds of 768-dimensional arrays would increase payload size without helping document inspection. The detail endpoint preserves chunk order so extraction and chunking quality can be reviewed before semantic retrieval is introduced.
+
 ### Exact Search Before Approximate Indexing
 
 The initial schema does not create an HNSW or IVFFlat index. pgvector performs exact nearest-neighbor search by default, which is easier to evaluate and preserves full recall while the collection is small. Approximate indexing will be considered after retrieval quality and query latency are measured with representative data.
@@ -293,7 +308,6 @@ The initial schema does not create an HNSW or IVFFlat index. pgvector performs e
 
 ### 1. Document Lifecycle
 
-- expose indexed document listing and details;
 - define document reindexing and deletion.
 
 ### 2. Semantic Retrieval

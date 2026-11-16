@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, NotFoundException } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module.js';
@@ -10,6 +10,7 @@ import {
   type DocumentsConfig,
 } from './../src/modules/documents/config/documents.config.js';
 import { DocumentIndexingService } from './../src/modules/documents/services/document-indexing/document-indexing.service.js';
+import { DocumentsQueryService } from './../src/modules/documents/services/documents-query/documents-query.service.js';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication<App>;
@@ -26,6 +27,42 @@ describe('HealthController (e2e)', () => {
       embeddingDimensions: 768,
     }),
   };
+  const documentId = '550e8400-e29b-41d4-a716-446655440000';
+  const documentSummary = {
+    id: documentId,
+    originalName: 'fixture.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 100,
+    pageCount: 1,
+    embeddingModel: 'embeddinggemma',
+    embeddingDimensions: 768,
+    chunkSize: 1_200,
+    chunkOverlap: 200,
+    chunkCount: 1,
+    createdAt: new Date('2026-11-15T00:00:00Z'),
+  };
+  const indexedDocument = {
+    ...documentSummary,
+    checksumSha256: 'a'.repeat(64),
+  };
+  const queryService = {
+    list: vi.fn().mockResolvedValue({
+      items: [documentSummary],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    }),
+    findById: vi.fn().mockResolvedValue({
+      ...indexedDocument,
+      chunks: [
+        {
+          id: '650e8400-e29b-41d4-a716-446655440000',
+          index: 0,
+          pageNumber: 1,
+          content: 'Maggie Library PDF',
+          createdAt: new Date('2026-11-15T00:00:00Z'),
+        },
+      ],
+    }),
+  };
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -33,6 +70,8 @@ describe('HealthController (e2e)', () => {
     })
       .overrideProvider(DocumentIndexingService)
       .useValue(indexingService)
+      .overrideProvider(DocumentsQueryService)
+      .useValue(queryService)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -92,6 +131,51 @@ describe('HealthController (e2e)', () => {
     );
   });
 
+  it('/api/documents (GET)', async () => {
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/documents?page=1&limit=20`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0]).not.toHaveProperty('embedding');
+        expect(body.pagination).toEqual({
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+        });
+      });
+
+    expect(queryService.list).toHaveBeenCalledWith('1', '20');
+  });
+
+  it('/api/documents/:id (GET)', async () => {
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/documents/${documentId}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.id).toBe(documentId);
+        expect(body.chunks).toHaveLength(1);
+        expect(body.chunks[0]).not.toHaveProperty('embedding');
+      });
+  });
+
+  it('/api/documents/:id (GET) rejects an invalid UUID', () => {
+    return request(app.getHttpServer())
+      .get(`/${apiPrefix}/documents/not-a-uuid`)
+      .expect(400);
+  });
+
+  it('/api/documents/:id (GET) returns not found', async () => {
+    queryService.findById.mockRejectedValueOnce(
+      new NotFoundException('Documento não encontrado.'),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/${apiPrefix}/documents/650e8400-e29b-41d4-a716-446655440000`)
+      .expect(404);
+  });
+
   it('/api/documents/extract (POST) rejects oversized PDFs', async () => {
     await request(app.getHttpServer())
       .post(`/${apiPrefix}/documents/extract`)
@@ -104,6 +188,8 @@ describe('HealthController (e2e)', () => {
 
   afterEach(async () => {
     indexingService.index.mockClear();
+    queryService.list.mockClear();
+    queryService.findById.mockClear();
     await app.close();
   });
 });

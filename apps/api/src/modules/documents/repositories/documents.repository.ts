@@ -1,8 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { count, eq } from 'drizzle-orm';
+import { asc, count, desc, eq, type SQL } from 'drizzle-orm';
 import { DATABASE } from '../../../database/database.constants.js';
 import type { Database } from '../../../database/database.types.js';
 import { documentChunks, documents } from '../../../database/schema.js';
+import type {
+  DocumentDetails,
+  DocumentPage,
+} from '../models/document-query.model.js';
 import type {
   IndexedDocument,
   PersistDocumentInput,
@@ -16,7 +20,54 @@ export class DocumentsRepository {
   constructor(@Inject(DATABASE) private readonly database: Database) {}
 
   findByChecksum(checksumSha256: string): Promise<IndexedDocument | null> {
-    return this.selectByChecksum(this.database, checksumSha256);
+    return this.selectDocument(
+      this.database,
+      eq(documents.checksumSha256, checksumSha256),
+    );
+  }
+
+  async list(offset: number, limit: number): Promise<DocumentPage> {
+    const [items, totalRows] = await Promise.all([
+      this.database
+        .select(this.documentSummarySelection())
+        .from(documents)
+        .leftJoin(documentChunks, eq(documentChunks.documentId, documents.id))
+        .groupBy(documents.id)
+        .orderBy(desc(documents.createdAt))
+        .limit(limit)
+        .offset(offset),
+      this.database.select({ total: count() }).from(documents),
+    ]);
+
+    return {
+      items,
+      total: totalRows[0]?.total ?? 0,
+    };
+  }
+
+  async findById(id: string): Promise<DocumentDetails | null> {
+    const document = await this.selectDocument(
+      this.database,
+      eq(documents.id, id),
+    );
+
+    if (!document) {
+      return null;
+    }
+
+    const chunks = await this.database
+      .select({
+        id: documentChunks.id,
+        index: documentChunks.chunkIndex,
+        pageNumber: documentChunks.pageNumber,
+        content: documentChunks.content,
+        createdAt: documentChunks.createdAt,
+      })
+      .from(documentChunks)
+      .where(eq(documentChunks.documentId, id))
+      .orderBy(asc(documentChunks.chunkIndex));
+
+    return { ...document, chunks };
   }
 
   createIfAbsent(input: PersistDocumentInput): Promise<PersistDocumentResult> {
@@ -38,9 +89,9 @@ export class DocumentsRepository {
         .returning();
 
       if (!insertedDocument) {
-        const existingDocument = await this.selectByChecksum(
+        const existingDocument = await this.selectDocument(
           transaction,
-          input.checksumSha256,
+          eq(documents.checksumSha256, input.checksumSha256),
         );
 
         if (!existingDocument) {
@@ -72,31 +123,41 @@ export class DocumentsRepository {
     });
   }
 
-  private async selectByChecksum(
+  private async selectDocument(
     database: DatabaseReader,
-    checksumSha256: string,
+    condition: SQL,
   ): Promise<IndexedDocument | null> {
     const [document] = await database
-      .select({
-        id: documents.id,
-        checksumSha256: documents.checksumSha256,
-        originalName: documents.originalName,
-        mimeType: documents.mimeType,
-        sizeBytes: documents.sizeBytes,
-        pageCount: documents.pageCount,
-        embeddingModel: documents.embeddingModel,
-        embeddingDimensions: documents.embeddingDimensions,
-        chunkSize: documents.chunkSize,
-        chunkOverlap: documents.chunkOverlap,
-        chunkCount: count(documentChunks.id),
-        createdAt: documents.createdAt,
-      })
+      .select(this.documentSelection())
       .from(documents)
       .leftJoin(documentChunks, eq(documentChunks.documentId, documents.id))
-      .where(eq(documents.checksumSha256, checksumSha256))
+      .where(condition)
       .groupBy(documents.id)
       .limit(1);
 
     return document ?? null;
+  }
+
+  private documentSelection() {
+    return {
+      checksumSha256: documents.checksumSha256,
+      ...this.documentSummarySelection(),
+    };
+  }
+
+  private documentSummarySelection() {
+    return {
+      id: documents.id,
+      originalName: documents.originalName,
+      mimeType: documents.mimeType,
+      sizeBytes: documents.sizeBytes,
+      pageCount: documents.pageCount,
+      embeddingModel: documents.embeddingModel,
+      embeddingDimensions: documents.embeddingDimensions,
+      chunkSize: documents.chunkSize,
+      chunkOverlap: documents.chunkOverlap,
+      chunkCount: count(documentChunks.id),
+      createdAt: documents.createdAt,
+    };
   }
 }
