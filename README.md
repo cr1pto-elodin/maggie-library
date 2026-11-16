@@ -19,7 +19,7 @@ Already implemented:
 - local PostgreSQL 17 infrastructure with pgvector;
 - typed Drizzle schema and versioned database migrations;
 - transactional and idempotent document indexing;
-- web interface for extraction and embedding generation;
+- modular web interface with document library and a future chat area;
 - unit and end-to-end HTTP tests.
 
 Not implemented yet:
@@ -58,6 +58,10 @@ maggie-library/
 │   │       └── shared/
 │   │           └── http/            # Shared HTTP config and client
 │   └── web/                         # React + Vite interface
+│       └── src/
+│           ├── config/              # Environment reading and HTTP config
+│           ├── pages/sign-in/       # Signed-in layout and feature modules
+│           └── services/            # API clients and response contracts
 └── README.md
 ```
 
@@ -91,6 +95,7 @@ services/
 - React;
 - TypeScript;
 - Vite;
+- Axios;
 - ESLint.
 
 ### Local AI
@@ -146,10 +151,11 @@ Numeric settings and URLs are validated during startup. The overlap must be smal
 
 ### Web Variables
 
-| Variable            | Default                 | Purpose                            |
-| ------------------- | ----------------------- | ---------------------------------- |
-| `VITE_API_BASE_URL` | `/api`                  | Base path used by browser requests |
-| `API_PROXY_TARGET`  | `http://localhost:4000` | Vite development proxy target      |
+| Variable               | Default                 | Purpose                            |
+| ---------------------- | ----------------------- | ---------------------------------- |
+| `VITE_API_BASE_URL`    | `/api`                  | Base path used by browser requests |
+| `VITE_HTTP_TIMEOUT_MS` | `30000`                 | Browser HTTP client timeout        |
+| `API_PROXY_TARGET`     | `http://localhost:4000` | Vite development proxy target      |
 
 ## Installation
 

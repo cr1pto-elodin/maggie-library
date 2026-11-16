@@ -1,0 +1,139 @@
+.chat-module {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 219px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 10px 35px rgb(30 35 60 / 4%);
+}
+
+.chat-empty-state {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  padding: 45px 24px;
+  text-align: center;
+}
+
+.chat-empty-state__icon {
+  display: grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  border-radius: 20px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.chat-empty-state__icon svg {
+  width: 31px;
+  height: 31px;
+}
+
+.chat-empty-state__badge {
+  margin-top: 20px;
+  padding: 4px 9px;
+  border-radius: 20px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.chat-empty-state h2 {
+  margin: 13px 0 8px;
+  color: var(--text);
+  font-size: 21px;
+  letter-spacing: -0.03em;
+}
+
+.chat-empty-state p {
+  max-width: 470px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.chat-composer {
+  padding: 17px 20px 19px;
+  border-top: 1px solid var(--border);
+  background: #fbfbfd;
+}
+
+.chat-composer > label {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+}
+
+.chat-composer > div {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px 10px 10px 15px;
+  border: 1px solid #dfe0e9;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.chat-composer textarea {
+  min-height: 42px;
+  max-height: 120px;
+  flex: 1;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chat-composer textarea::placeholder {
+  color: #a1a4b3;
+}
+
+.chat-composer button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  background: var(--accent);
+}
+
+.chat-composer button:disabled {
+  color: #aeb0bd;
+  background: #ececf1;
+}
+
+.chat-composer button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.chat-composer > small {
+  display: block;
+  margin-top: 8px;
+  color: #999cac;
+  font-size: 9px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .chat-module {
+    min-height: calc(100vh - 245px);
+  }
+}
+
