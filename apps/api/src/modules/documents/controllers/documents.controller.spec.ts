@@ -1,10 +1,7 @@
-import { BadGatewayException } from '@nestjs/common';
 import { PdfExtractionError } from '../exceptions/pdf-extraction.error.js';
 import { DocumentIndexingService } from '../services/document-indexing/document-indexing.service.js';
 import { DocumentsQueryService } from '../services/documents-query/documents-query.service.js';
 import { DocumentsController } from './documents.controller.js';
-import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
-import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
 import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
 import { SemanticSearchService } from '../services/semantic-search/semantic-search.service.js';
 
@@ -39,8 +36,6 @@ describe('DocumentsController', () => {
     const controller = createController(
       { extract: vi.fn() },
       undefined,
-      undefined,
-      undefined,
       queryService,
     );
 
@@ -57,8 +52,6 @@ describe('DocumentsController', () => {
     const controller = createController(
       { extract: vi.fn() },
       undefined,
-      undefined,
-      undefined,
       queryService,
     );
 
@@ -74,8 +67,6 @@ describe('DocumentsController', () => {
     };
     const controller = createController(
       { extract: vi.fn() },
-      undefined,
-      undefined,
       undefined,
       queryService,
     );
@@ -99,8 +90,6 @@ describe('DocumentsController', () => {
       { extract: vi.fn() },
       undefined,
       undefined,
-      undefined,
-      undefined,
       semanticSearchService,
     );
 
@@ -119,12 +108,7 @@ describe('DocumentsController', () => {
       embeddingDimensions: 768,
     };
     const indexingService = { index: vi.fn().mockResolvedValue(response) };
-    const controller = createController(
-      { extract: vi.fn() },
-      undefined,
-      undefined,
-      indexingService,
-    );
+    const controller = createController({ extract: vi.fn() }, indexingService);
 
     await expect(controller.index(file)).resolves.toEqual(response);
     expect(indexingService.index).toHaveBeenCalledWith(file);
@@ -145,12 +129,7 @@ describe('DocumentsController', () => {
       index: vi.fn(),
       reindex: vi.fn().mockResolvedValue(response),
     };
-    const controller = createController(
-      { extract: vi.fn() },
-      undefined,
-      undefined,
-      indexingService,
-    );
+    const controller = createController({ extract: vi.fn() }, indexingService);
 
     await expect(controller.reindex('document-id', file)).resolves.toBe(
       response,
@@ -176,92 +155,10 @@ describe('DocumentsController', () => {
 
     await expect(controller.extract(file)).rejects.toBe(extractionError);
   });
-
-  it('generates embeddings for the extracted PDF chunks', async () => {
-    const chunks = [
-      { index: 0, pageNumber: 1, text: 'Primeiro trecho' },
-      { index: 1, pageNumber: 1, text: 'Segundo trecho' },
-    ];
-    const extractionService = {
-      extract: vi.fn().mockResolvedValue(extractionResult),
-    };
-    const chunkingService = { chunk: vi.fn().mockReturnValue(chunks) };
-    const embeddingService = {
-      embed: vi.fn().mockResolvedValue({
-        model: 'embeddinggemma',
-        embeddings: [
-          [0.1, 0.2],
-          [0.3, 0.4],
-        ],
-      }),
-    };
-    const controller = createController(
-      extractionService,
-      chunkingService,
-      embeddingService,
-    );
-    await expect(controller.embed(file)).resolves.toEqual({
-      model: 'embeddinggemma',
-      dimensions: 2,
-      chunks: [
-        { ...chunks[0], embedding: [0.1, 0.2] },
-        { ...chunks[1], embedding: [0.3, 0.4] },
-      ],
-    });
-    expect(embeddingService.embed).toHaveBeenCalledWith([
-      'Primeiro trecho',
-      'Segundo trecho',
-    ]);
-  });
-
-  it('rejects a PDF without text before calling Ollama', async () => {
-    const embeddingService = { embed: vi.fn() };
-    const controller = createController(
-      { extract: vi.fn().mockResolvedValue(extractionResult) },
-      { chunk: vi.fn().mockReturnValue([]) },
-      embeddingService,
-    );
-    await expect(controller.embed(file)).rejects.toThrow(
-      'O PDF não possui texto para gerar embeddings.',
-    );
-    expect(embeddingService.embed).not.toHaveBeenCalled();
-  });
-
-  it('propagates extraction errors during embedding', async () => {
-    const extractionError = new PdfExtractionError();
-    const embeddingService = { embed: vi.fn() };
-    const controller = createController(
-      { extract: vi.fn().mockRejectedValue(extractionError) },
-      { chunk: vi.fn() },
-      embeddingService,
-    );
-    await expect(controller.embed(file)).rejects.toBe(extractionError);
-    expect(embeddingService.embed).not.toHaveBeenCalled();
-  });
-
-  it('reports Ollama errors as a bad gateway', async () => {
-    const controller = createController(
-      { extract: vi.fn().mockResolvedValue(extractionResult) },
-      {
-        chunk: vi
-          .fn()
-          .mockReturnValue([{ index: 0, pageNumber: 1, text: 'Trecho' }]),
-      },
-      { embed: vi.fn().mockRejectedValue(new Error('Ollama unavailable')) },
-    );
-    await expect(controller.embed(file)).rejects.toBeInstanceOf(
-      BadGatewayException,
-    );
-    await expect(controller.embed(file)).rejects.toThrow(
-      'Não foi possível gerar embeddings usando o Ollama.',
-    );
-  });
 });
 
 function createController(
   extractionService: { extract: ReturnType<typeof vi.fn> },
-  chunkingService: { chunk: ReturnType<typeof vi.fn> } = { chunk: vi.fn() },
-  embeddingService: { embed: ReturnType<typeof vi.fn> } = { embed: vi.fn() },
   indexingService: {
     index: ReturnType<typeof vi.fn>;
     reindex?: ReturnType<typeof vi.fn>;
@@ -279,8 +176,6 @@ function createController(
     indexingService as unknown as DocumentIndexingService,
     queryService as unknown as DocumentsQueryService,
     extractionService as unknown as PdfExtractionService,
-    chunkingService as unknown as PdfChunkingService,
-    embeddingService as unknown as OllamaEmbeddingService,
     semanticSearchService as unknown as SemanticSearchService,
   );
 }

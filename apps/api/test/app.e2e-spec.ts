@@ -138,7 +138,7 @@ describe('HealthController (e2e)', () => {
         filename: 'fixture.pdf',
         contentType: 'application/pdf',
       })
-      .expect(201)
+      .expect(200)
       .expect(({ body }) => {
         expect(body.totalPages).toBe(1);
         expect(body.text).toContain('Maggie Library PDF');
@@ -189,7 +189,7 @@ describe('HealthController (e2e)', () => {
         filename: 'fixture.pdf',
         contentType: 'application/pdf',
       })
-      .expect(201)
+      .expect(200)
       .expect({
         documentId: 'document-id',
         status: 'indexed',
@@ -215,7 +215,7 @@ describe('HealthController (e2e)', () => {
         filename: 'fixture.pdf',
         contentType: 'application/pdf',
       })
-      .expect(201)
+      .expect(200)
       .expect(({ body }) => {
         expect(body).toMatchObject({
           documentId,
@@ -239,6 +239,12 @@ describe('HealthController (e2e)', () => {
         contentType: 'application/pdf',
       })
       .expect(400);
+  });
+
+  it('/api/documents/embed (POST) is not exposed', () => {
+    return request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/embed`)
+      .expect(404);
   });
 
   it('/api/documents/:id/reindex (POST) rejects different content', async () => {
