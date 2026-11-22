@@ -90,6 +90,44 @@ describe('DocumentsRepository', () => {
     expect(select).toHaveBeenCalledOnce();
   });
 
+  it('searches compatible chunks by cosine similarity without exposing embeddings', async () => {
+    const results = [
+      {
+        chunkId: 'chunk-id',
+        documentId: 'document-id',
+        documentName: 'library.pdf',
+        chunkIndex: 0,
+        pageNumber: 1,
+        content: 'Trecho relevante',
+        score: 0.82,
+      },
+    ];
+    const searchChain = createSearchChain(results);
+    const select = vi.fn().mockReturnValue(searchChain);
+    const repository = new DocumentsRepository({
+      select,
+    } as unknown as Database);
+
+    await expect(
+      repository.search({
+        embedding: [0.1, 0.2],
+        embeddingModel: 'embeddinggemma',
+        embeddingDimensions: 768,
+        topK: 5,
+        minScore: 0.5,
+        documentIds: ['550e8400-e29b-41d4-a716-446655440000'],
+      }),
+    ).resolves.toEqual(results);
+
+    expect(select).toHaveBeenCalledWith(
+      expect.not.objectContaining({ embedding: expect.anything() }),
+    );
+    expect(searchChain.innerJoin).toHaveBeenCalledOnce();
+    expect(searchChain.where).toHaveBeenCalledOnce();
+    expect(searchChain.orderBy).toHaveBeenCalledOnce();
+    expect(searchChain.limit).toHaveBeenCalledWith(5);
+  });
+
   it('inserts the document and all chunks in the same transaction', async () => {
     const insertedDocument = createIndexedDocument();
     const documentValues = vi.fn().mockReturnValue({
@@ -241,6 +279,32 @@ function createChunksChain(
   };
   chain.from.mockReturnValue(chain);
   chain.where.mockReturnValue(chain);
+
+  return chain;
+}
+
+function createSearchChain(
+  result: Array<{
+    chunkId: string;
+    documentId: string;
+    documentName: string;
+    chunkIndex: number;
+    pageNumber: number;
+    content: string;
+    score: number;
+  }>,
+) {
+  const chain = {
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    where: vi.fn(),
+    orderBy: vi.fn(),
+    limit: vi.fn().mockResolvedValue(result),
+  };
+  chain.from.mockReturnValue(chain);
+  chain.innerJoin.mockReturnValue(chain);
+  chain.where.mockReturnValue(chain);
+  chain.orderBy.mockReturnValue(chain);
 
   return chain;
 }

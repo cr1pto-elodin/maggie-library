@@ -1,5 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, count, desc, eq, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  lte,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { cosineDistance } from 'drizzle-orm/sql/functions/vector';
 import { DATABASE } from '../../../database/database.constants.js';
 import type { Database } from '../../../database/database.types.js';
 import { documentChunks, documents } from '../../../database/schema.js';
@@ -12,6 +23,10 @@ import type {
   PersistDocumentInput,
   PersistDocumentResult,
 } from '../models/indexed-document.model.js';
+import type {
+  SemanticSearchCriteria,
+  SemanticSearchResult,
+} from '../models/semantic-search.model.js';
 
 type DatabaseReader = Pick<Database, 'select'>;
 
@@ -68,6 +83,39 @@ export class DocumentsRepository {
       .orderBy(asc(documentChunks.chunkIndex));
 
     return { ...document, chunks };
+  }
+
+  search(criteria: SemanticSearchCriteria): Promise<SemanticSearchResult[]> {
+    const distance = cosineDistance(
+      documentChunks.embedding,
+      criteria.embedding,
+    );
+    const score = sql<number>`1 - (${distance})`.mapWith(Number);
+
+    return this.database
+      .select({
+        chunkId: documentChunks.id,
+        documentId: documents.id,
+        documentName: documents.originalName,
+        chunkIndex: documentChunks.chunkIndex,
+        pageNumber: documentChunks.pageNumber,
+        content: documentChunks.content,
+        score,
+      })
+      .from(documentChunks)
+      .innerJoin(documents, eq(documents.id, documentChunks.documentId))
+      .where(
+        and(
+          eq(documents.embeddingModel, criteria.embeddingModel),
+          eq(documents.embeddingDimensions, criteria.embeddingDimensions),
+          lte(distance, 1 - criteria.minScore),
+          criteria.documentIds
+            ? inArray(documents.id, criteria.documentIds)
+            : undefined,
+        ),
+      )
+      .orderBy(asc(distance), asc(documents.id), asc(documentChunks.chunkIndex))
+      .limit(criteria.topK);
   }
 
   createIfAbsent(input: PersistDocumentInput): Promise<PersistDocumentResult> {

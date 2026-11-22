@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  INestApplication,
+  NotFoundException,
+} from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module.js';
@@ -11,6 +16,7 @@ import {
 } from './../src/modules/documents/config/documents.config.js';
 import { DocumentIndexingService } from './../src/modules/documents/services/document-indexing/document-indexing.service.js';
 import { DocumentsQueryService } from './../src/modules/documents/services/documents-query/documents-query.service.js';
+import { SemanticSearchService } from './../src/modules/documents/services/semantic-search/semantic-search.service.js';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication<App>;
@@ -63,6 +69,24 @@ describe('HealthController (e2e)', () => {
       ],
     }),
   };
+  const semanticSearchService = {
+    search: vi.fn().mockResolvedValue({
+      model: 'embeddinggemma',
+      topK: 3,
+      minScore: 0.6,
+      results: [
+        {
+          chunkId: '650e8400-e29b-41d4-a716-446655440000',
+          documentId,
+          documentName: 'fixture.pdf',
+          chunkIndex: 0,
+          pageNumber: 1,
+          content: 'Maggie Library PDF',
+          score: 0.82,
+        },
+      ],
+    }),
+  };
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -72,6 +96,8 @@ describe('HealthController (e2e)', () => {
       .useValue(indexingService)
       .overrideProvider(DocumentsQueryService)
       .useValue(queryService)
+      .overrideProvider(SemanticSearchService)
+      .useValue(semanticSearchService)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -197,6 +223,63 @@ describe('HealthController (e2e)', () => {
       });
   });
 
+  it('/api/documents/search (POST)', async () => {
+    const body = {
+      query: 'O que é Maggie Library?',
+      topK: 3,
+      minScore: 0.6,
+      documentIds: [documentId],
+    };
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/search`)
+      .send(body)
+      .expect(200)
+      .expect(({ body: responseBody }) => {
+        expect(responseBody.results).toHaveLength(1);
+        expect(responseBody.results[0]).not.toHaveProperty('embedding');
+        expect(responseBody.results[0]).toMatchObject({
+          documentId,
+          documentName: 'fixture.pdf',
+          pageNumber: 1,
+          score: 0.82,
+        });
+      });
+
+    expect(semanticSearchService.search).toHaveBeenCalledWith(body);
+  });
+
+  it('/api/documents/search (POST) rejects invalid input', async () => {
+    semanticSearchService.search.mockRejectedValueOnce(
+      new BadRequestException(
+        'O campo "query" precisa ser um texto não vazio.',
+      ),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/search`)
+      .send({ query: '' })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe(
+          'O campo "query" precisa ser um texto não vazio.',
+        );
+      });
+  });
+
+  it('/api/documents/search (POST) translates Ollama failures', async () => {
+    semanticSearchService.search.mockRejectedValueOnce(
+      new BadGatewayException(
+        'Não foi possível gerar o embedding da pergunta usando o Ollama.',
+      ),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/search`)
+      .send({ query: 'O que é Maggie Library?' })
+      .expect(502);
+  });
+
   it('/api/documents/:id (GET) rejects an invalid UUID', () => {
     return request(app.getHttpServer())
       .get(`/${apiPrefix}/documents/not-a-uuid`)
@@ -227,6 +310,7 @@ describe('HealthController (e2e)', () => {
     indexingService.index.mockClear();
     queryService.list.mockClear();
     queryService.findById.mockClear();
+    semanticSearchService.search.mockClear();
     await app.close();
   });
 });

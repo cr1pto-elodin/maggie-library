@@ -6,6 +6,7 @@ import { DocumentsController } from './documents.controller.js';
 import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
 import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
+import { SemanticSearchService } from '../services/semantic-search/semantic-search.service.js';
 
 describe('DocumentsController', () => {
   const extractionResult = {
@@ -63,6 +64,30 @@ describe('DocumentsController', () => {
 
     await expect(controller.findById('document-id')).resolves.toBe(response);
     expect(queryService.findById).toHaveBeenCalledWith('document-id');
+  });
+
+  it('delegates semantic search with its request body', async () => {
+    const input = { query: 'Como funciona a biblioteca?', topK: 3 };
+    const response = {
+      model: 'embeddinggemma',
+      topK: 3,
+      minScore: 0.5,
+      results: [],
+    };
+    const semanticSearchService = {
+      search: vi.fn().mockResolvedValue(response),
+    };
+    const controller = createController(
+      { extract: vi.fn() },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      semanticSearchService,
+    );
+
+    await expect(controller.search(input)).resolves.toBe(response);
+    expect(semanticSearchService.search).toHaveBeenCalledWith(input);
   });
 
   it('indexes a PDF and returns the persisted document summary', async () => {
@@ -196,6 +221,9 @@ function createController(
     list: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
   } = { list: vi.fn(), findById: vi.fn() },
+  semanticSearchService: { search: ReturnType<typeof vi.fn> } = {
+    search: vi.fn(),
+  },
 ) {
   return new DocumentsController(
     indexingService as unknown as DocumentIndexingService,
@@ -203,5 +231,6 @@ function createController(
     extractionService as unknown as PdfExtractionService,
     chunkingService as unknown as PdfChunkingService,
     embeddingService as unknown as OllamaEmbeddingService,
+    semanticSearchService as unknown as SemanticSearchService,
   );
 }

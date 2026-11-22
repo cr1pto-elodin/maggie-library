@@ -6,6 +6,7 @@ import {
   type DocumentsConfig,
 } from './config/documents.config.js';
 import { ollamaConfig } from './config/ollama.config.js';
+import { semanticSearchConfig } from './config/semantic-search.config.js';
 import { DocumentsController } from './controllers/documents.controller.js';
 import { PdfExtractionExceptionFilter } from './filters/pdf-extraction-exception.filter.js';
 import { PdfUploadPipe } from './pipes/pdf-upload.pipe.js';
@@ -15,11 +16,13 @@ import { DocumentsQueryService } from './services/documents-query/documents-quer
 import { OllamaEmbeddingService } from './services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from './services/pdf-chunking/pdf-chunking.service.js';
 import { PdfExtractionService } from './services/pdf-extraction/pdf-extraction.service.js';
+import { SemanticSearchService } from './services/semantic-search/semantic-search.service.js';
 
 @Module({
   imports: [
     ConfigModule.forFeature(documentsConfig),
     ConfigModule.forFeature(ollamaConfig),
+    ConfigModule.forFeature(semanticSearchConfig),
     MulterModule.registerAsync({
       imports: [ConfigModule.forFeature(documentsConfig)],
       inject: [documentsConfig.KEY],
@@ -40,6 +43,7 @@ import { PdfExtractionService } from './services/pdf-extraction/pdf-extraction.s
     PdfChunkingService,
     PdfExtractionService,
     PdfUploadPipe,
+    SemanticSearchService,
   ],
   exports: [OllamaEmbeddingService, PdfExtractionService],
 })

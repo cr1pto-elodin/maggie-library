@@ -30,6 +30,29 @@ export function readNonNegativeInteger(name: string, fallback: number): number {
   return value;
 }
 
+export function readNumberInRange(
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const rawValue = process.env[name];
+  const value =
+    rawValue === undefined
+      ? fallback
+      : rawValue.trim().length > 0
+        ? Number(rawValue)
+        : Number.NaN;
+
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `${name} precisa ser um número entre ${minimum} e ${maximum}.`,
+    );
+  }
+
+  return value;
+}
+
 export function readHttpUrl(name: string, fallback: string): string {
   const value = readNonEmptyString(name, fallback);
   let url: URL;

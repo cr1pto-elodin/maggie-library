@@ -1,8 +1,11 @@
 import {
   BadGatewayException,
   BadRequestException,
+  Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -14,6 +17,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { EmbedDocumentResponseDto } from '../dtos/embed-document-response.dto.js';
 import type { IndexDocumentResponseDto } from '../dtos/index-document-response.dto.js';
+import type { SemanticSearchRequestDto } from '../dtos/semantic-search-request.dto.js';
+import type { SemanticSearchResponseDto } from '../dtos/semantic-search-response.dto.js';
 import { PdfExtractionExceptionFilter } from '../filters/pdf-extraction-exception.filter.js';
 import type { PdfUpload } from '../models/pdf-upload.model.js';
 import { PdfUploadPipe } from '../pipes/pdf-upload.pipe.js';
@@ -22,6 +27,7 @@ import { DocumentsQueryService } from '../services/documents-query/documents-que
 import { OllamaEmbeddingService } from '../services/ollama-embedding/ollama-embedding.service.js';
 import { PdfChunkingService } from '../services/pdf-chunking/pdf-chunking.service.js';
 import { PdfExtractionService } from '../services/pdf-extraction/pdf-extraction.service.js';
+import { SemanticSearchService } from '../services/semantic-search/semantic-search.service.js';
 
 @Controller('documents')
 @UseFilters(PdfExtractionExceptionFilter)
@@ -32,6 +38,7 @@ export class DocumentsController {
     private readonly pdfExtractionService: PdfExtractionService,
     private readonly pdfChunkingService: PdfChunkingService,
     private readonly ollamaEmbeddingService: OllamaEmbeddingService,
+    private readonly semanticSearchService: SemanticSearchService,
   ) {}
 
   @Get()
@@ -42,6 +49,14 @@ export class DocumentsController {
   @Get(':id')
   findById(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.documentsQueryService.findById(id);
+  }
+
+  @Post('search')
+  @HttpCode(HttpStatus.OK)
+  search(
+    @Body() input: SemanticSearchRequestDto,
+  ): Promise<SemanticSearchResponseDto> {
+    return this.semanticSearchService.search(input);
   }
 
   @Post('index')

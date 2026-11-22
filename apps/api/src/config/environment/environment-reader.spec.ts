@@ -2,6 +2,7 @@ import {
   readHttpUrl,
   readNonEmptyString,
   readNonNegativeInteger,
+  readNumberInRange,
   readPositiveInteger,
   readPostgresUrl,
 } from './environment-reader.js';
@@ -25,6 +26,20 @@ describe('environmentReader', () => {
 
     expect(() => readPositiveInteger('POSITIVE_VALUE', 1)).toThrow();
     expect(() => readNonNegativeInteger('NON_NEGATIVE_VALUE', 0)).toThrow();
+  });
+
+  it('reads a number inside a configured range', () => {
+    vi.stubEnv('SCORE', '0.65');
+
+    expect(readNumberInRange('SCORE', 0.5, -1, 1)).toBe(0.65);
+  });
+
+  it.each(['1.1', ''])('rejects an invalid ranged number: %j', (value) => {
+    vi.stubEnv('SCORE', value);
+
+    expect(() => readNumberInRange('SCORE', 0.5, -1, 1)).toThrow(
+      'SCORE precisa ser um número entre -1 e 1.',
+    );
   });
 
   it('normalizes HTTP URLs and accepts PostgreSQL URLs', () => {

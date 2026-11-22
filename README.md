@@ -2,7 +2,7 @@
 
 Maggie Library is a study project about **Retrieval-Augmented Generation (RAG)** running locally with [Ollama](https://ollama.com/). Its goal is to build and understand every stage of the architecture—from reading documents to semantic retrieval and generating answers grounded in sources.
 
-The project prioritizes incremental implementations, verifiable contracts, and explanations of architectural decisions. At this point, the ingestion pipeline can extract PDFs, create chunks, generate embeddings, and persist them in PostgreSQL with pgvector. Similarity search is not implemented yet.
+The project prioritizes incremental implementations, verifiable contracts, and explanations of architectural decisions. At this point, the ingestion pipeline can extract PDFs, create chunks, generate embeddings, and persist them in PostgreSQL with pgvector. A technical endpoint can embed a question and retrieve compatible chunks by exact cosine similarity search.
 
 ## Current Status
 
@@ -19,12 +19,12 @@ Already implemented:
 - local PostgreSQL 17 infrastructure with pgvector;
 - typed Drizzle schema and versioned database migrations;
 - transactional and idempotent document indexing;
+- exact semantic retrieval with configurable top-k, score threshold, and document filters;
 - modular web interface with document library and a future chat area;
 - unit and end-to-end HTTP tests.
 
 Not implemented yet:
 
-- similarity search;
 - answer generation using retrieved passages;
 - citations and conversation history.
 
@@ -40,6 +40,14 @@ PDF
 ```
 
 The `/documents/index` flow stores the document and every chunk atomically. The diagnostic `/documents/embed` route remains available and returns chunks with vectors without persisting them.
+
+```text
+Question
+ └─ embedding generation through Ollama
+     └─ exact cosine search over compatible vectors
+         └─ top-k, score threshold, and optional document filters
+             └─ ranked chunks with document and page references
+```
 
 ## Architecture
 
@@ -145,6 +153,9 @@ cp apps/web/.env.example apps/web/.env
 | `DOCUMENT_MAX_FILE_SIZE_BYTES` | `10485760`               | Upload limit, equivalent to 10 MiB      |
 | `DOCUMENT_CHUNK_SIZE`          | `1200`                   | Maximum number of characters per chunk  |
 | `DOCUMENT_CHUNK_OVERLAP`       | `200`                    | Characters shared by consecutive chunks |
+| `SEMANTIC_SEARCH_TOP_K`        | `5`                      | Default number of retrieved chunks      |
+| `SEMANTIC_SEARCH_MAX_TOP_K`    | `20`                     | Maximum accepted top-k override         |
+| `SEMANTIC_SEARCH_MIN_SCORE`    | `0.5`                    | Default minimum cosine similarity       |
 | `OLLAMA_URL`                   | `http://localhost:11434` | Ollama address                          |
 | `OLLAMA_MODEL`                 | `llama3.2:3b`            | Future answer-generation model          |
 | `OLLAMA_EMBEDDING_MODEL`       | `embeddinggemma`         | Model used to generate embeddings       |
@@ -229,6 +240,7 @@ Default addresses:
 | `GET`  | `/api/health`            | Checks whether the API is responding        |
 | `GET`  | `/api/documents`         | Lists indexed documents with pagination     |
 | `GET`  | `/api/documents/:id`     | Returns document details and text chunks    |
+| `POST` | `/api/documents/search`  | Retrieves chunks by semantic similarity     |
 | `POST` | `/api/documents/extract` | Extracts text and metadata from a PDF       |
 | `POST` | `/api/documents/embed`   | Extracts, chunks, and embeds a PDF          |
 | `POST` | `/api/documents/index`   | Idempotently persists a PDF and its vectors |
@@ -250,6 +262,19 @@ curl "http://localhost:4000/api/documents?page=1&limit=20"
 ```
 
 The default page size is 20 and the maximum is 100. Detail responses include chunks ordered by their original position, but neither read endpoint exposes embedding vectors.
+
+Search indexed chunks with a question and optional retrieval overrides:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"query":"How does document indexing work?"}' \
+  http://localhost:4000/api/documents/search
+```
+
+The technical search endpoint accepts `topK` between 1 and `SEMANTIC_SEARCH_MAX_TOP_K`, `minScore` between -1 and 1, and up to 100 optional version 4 UUIDs in `documentIds`. Missing overrides use the configured defaults. Results contain the score, chunk and document identifiers, document name, page, chunk position, and content; embeddings remain internal.
+
+The score is `1 - cosine distance`, so larger values mean greater similarity, but the value is not a probability. Search only compares chunks created with the same embedding model and dimensions returned for the question. `topK` and `minScore` are exposed temporarily for retrieval experiments; the future Chat contract will keep them internal to the RAG strategy.
 
 ## Web Data Flow
 
@@ -333,12 +358,12 @@ The initial schema does not create an HNSW or IVFFlat index. pgvector performs e
 
 - define document reindexing and deletion.
 
-### 2. Semantic Retrieval
+### 2. Semantic Retrieval (Implemented)
 
 - generate an embedding for the question;
-- retrieve the nearest chunks;
-- apply `top-k`, a score threshold, and metadata filters;
-- return the score, document, page, and excerpt.
+- retrieve the nearest chunks with exact cosine search;
+- apply `top-k`, a score threshold, and document filters;
+- return the score, document, page, and excerpt without exposing vectors.
 
 ### 3. Retrieval Evaluation
 
