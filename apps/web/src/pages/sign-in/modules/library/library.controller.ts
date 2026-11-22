@@ -1,7 +1,10 @@
+import { useState } from 'react'
+
 import type { DocumentSummary } from '../../../../services/documents.types'
 import { getRequestErrorMessage } from '../../../../services/http-client'
 import type { LibraryDocument, LibraryStatus } from './library.types'
 import { useDocumentsQuery } from './queries/use-documents-query'
+import { useIndexDocumentMutation } from './queries/use-index-document-mutation'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
@@ -42,6 +45,8 @@ function toLibraryDocument(document: DocumentSummary): LibraryDocument {
 
 export function useLibraryController() {
   const documentsQuery = useDocumentsQuery()
+  const indexDocumentMutation = useIndexDocumentMutation()
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const documents = documentsQuery.data ?? []
 
   const status: LibraryStatus = documentsQuery.isPending
@@ -59,10 +64,42 @@ export function useLibraryController() {
         )
       : '',
     reload: () => void documentsQuery.refetch(),
+    selectFile: (file: File | null) => {
+      indexDocumentMutation.reset()
+      setSelectedFile(file)
+    },
+    selectedFile,
     status,
     totalChunks: documents.reduce(
       (total, document) => total + document.chunkCount,
       0,
     ),
+    upload: () => {
+      if (!selectedFile || indexDocumentMutation.isPending) {
+        return
+      }
+
+      indexDocumentMutation.mutate(selectedFile, {
+        onSuccess: () => setSelectedFile(null),
+      })
+    },
+    uploadFeedback: indexDocumentMutation.isError
+      ? {
+          message: getRequestErrorMessage(
+            indexDocumentMutation.error,
+            'Não foi possível indexar o documento.',
+          ),
+          status: 'error' as const,
+        }
+      : indexDocumentMutation.isSuccess
+        ? {
+            message:
+              indexDocumentMutation.data.status === 'already_indexed'
+                ? 'Este PDF já estava indexado na biblioteca.'
+                : `Documento indexado com ${indexDocumentMutation.data.chunkCount} trechos.`,
+            status: 'success' as const,
+          }
+        : { message: '', status: 'idle' as const },
+    uploadPending: indexDocumentMutation.isPending,
   }
 }

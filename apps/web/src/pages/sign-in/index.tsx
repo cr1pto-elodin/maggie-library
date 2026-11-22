@@ -12,7 +12,9 @@ export function SignInPage() {
       activeModule={controller.activeModule}
       onSelectModule={controller.selectModule}
       subtitle={controller.subtitle}
+      theme={controller.theme}
       title={controller.title}
+      onToggleTheme={controller.toggleTheme}
     >
       {controller.activeModule === 'library' ? (
         <LibraryModule />

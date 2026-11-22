@@ -1,4 +1,5 @@
 import { useActiveModule } from './hooks/use-active-module'
+import { useTheme } from './hooks/use-theme'
 
 const moduleMetadata = {
   library: {
@@ -13,10 +14,13 @@ const moduleMetadata = {
 
 export function useSignInController() {
   const { activeModule, selectModule } = useActiveModule()
+  const { theme, toggleTheme } = useTheme()
 
   return {
     activeModule,
     selectModule,
+    theme,
+    toggleTheme,
     ...moduleMetadata[activeModule],
   }
 }

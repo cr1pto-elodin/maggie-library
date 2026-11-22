@@ -21,3 +21,13 @@ export interface DocumentsPage {
     totalPages: number
   }
 }
+
+export interface IndexDocumentResponse {
+  documentId: string
+  status: 'indexed' | 'already_indexed'
+  originalName: string
+  pageCount: number
+  chunkCount: number
+  embeddingModel: string
+  embeddingDimensions: number
+}

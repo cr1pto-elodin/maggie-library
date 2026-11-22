@@ -20,7 +20,7 @@ Already implemented:
 - typed Drizzle schema and versioned database migrations;
 - transactional and idempotent document indexing;
 - exact semantic retrieval with configurable top-k, score threshold, and document filters;
-- modular web interface with document library and a future chat area;
+- modular web interface with document upload, a document library, persistent light/dark themes, and a future chat area;
 - unit and end-to-end HTTP tests.
 
 Not implemented yet:
@@ -285,7 +285,7 @@ The web application separates remote data responsibilities by layer:
 - module controllers adapt query results into component-facing state and actions;
 - components render the controller contract without depending on Axios or TanStack Query.
 
-Future write operations should use feature-specific mutations. After a successful index, deletion, or reindex operation, the mutation must invalidate `documentsQueryKeys.all` instead of updating unrelated components directly. Mutations are introduced only when their corresponding user action exists.
+Write operations use feature-specific mutations. After a successful index, the Library mutation invalidates `documentsQueryKeys.all` instead of updating unrelated components directly; deletion and reindexing should follow the same convention when their user actions exist.
 
 ## Validation
 

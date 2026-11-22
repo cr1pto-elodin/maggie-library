@@ -64,7 +64,7 @@
 .chat-composer {
   padding: 17px 20px 19px;
   border-top: 1px solid var(--border);
-  background: #fbfbfd;
+  background: var(--subtle-surface);
 }
 
 .chat-composer > label {
@@ -80,9 +80,9 @@
   align-items: flex-end;
   gap: 10px;
   padding: 10px 10px 10px 15px;
-  border: 1px solid #dfe0e9;
+  border: 1px solid var(--control-border);
   border-radius: 13px;
-  background: #fff;
+  background: var(--control);
 }
 
 .chat-composer textarea {
@@ -99,7 +99,7 @@
 }
 
 .chat-composer textarea::placeholder {
-  color: #a1a4b3;
+  color: var(--soft-text);
 }
 
 .chat-composer button {
@@ -109,13 +109,13 @@
   place-items: center;
   border: 0;
   border-radius: 10px;
-  color: #fff;
+  color: var(--accent-contrast);
   background: var(--accent);
 }
 
 .chat-composer button:disabled {
-  color: #aeb0bd;
-  background: #ececf1;
+  color: var(--soft-text);
+  background: var(--tag-surface);
 }
 
 .chat-composer button svg {
@@ -126,7 +126,7 @@
 .chat-composer > small {
   display: block;
   margin-top: 8px;
-  color: #999cac;
+  color: var(--faint-text);
   font-size: 9px;
   text-align: center;
 }

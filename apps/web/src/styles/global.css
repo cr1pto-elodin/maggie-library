@@ -1,6 +1,6 @@
 :root {
-  color: #202338;
-  background: #f4f5fa;
+  color: var(--text);
+  background: var(--background);
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -11,15 +11,52 @@
   text-rendering: optimizeLegibility;
 
   --accent: #6d5bd0;
+  --accent-contrast: #ffffff;
   --accent-dark: #5745b8;
   --accent-soft: #f0edff;
   --background: #f4f5fa;
   --border: #e7e8f0;
   --card: #ffffff;
+  --control: #ffffff;
+  --control-border: #dfe0e9;
+  --danger: #bd4350;
+  --danger-soft: #fff0f1;
+  --faint-text: #999cac;
+  --header-background: rgb(255 255 255 / 78%);
   --muted: #74788e;
+  --soft-text: #9295a7;
+  --subtle-surface: #fbfbfd;
+  --tag-surface: #f6f6f9;
   --sidebar: #171a2d;
   --sidebar-muted: #9599ae;
+  --success: #167b67;
+  --success-soft: #e9faf4;
   --text: #202338;
+}
+
+:root[data-theme='dark'] {
+  --accent: #9584f2;
+  --accent-contrast: #11131d;
+  --accent-dark: #b6aaff;
+  --accent-soft: #2c284a;
+  --background: #11131d;
+  --border: #2b2f40;
+  --card: #1a1d2a;
+  --control: #222534;
+  --control-border: #35394b;
+  --danger: #ff9ca7;
+  --danger-soft: #43262e;
+  --faint-text: #8e94a8;
+  --header-background: rgb(17 19 29 / 82%);
+  --muted: #9ca2b7;
+  --soft-text: #a7acbd;
+  --subtle-surface: #151824;
+  --tag-surface: #242735;
+  --sidebar: #0d0f19;
+  --sidebar-muted: #9196aa;
+  --success: #72d7b8;
+  --success-soft: #17392f;
+  --text: #f0f1f7;
 }
 
 * {
@@ -30,6 +67,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  color: var(--text);
+  background: var(--background);
 }
 
 button,

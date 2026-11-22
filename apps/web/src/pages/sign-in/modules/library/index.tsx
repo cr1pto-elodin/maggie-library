@@ -1,4 +1,5 @@
 import { DocumentList } from './components/document-list'
+import { DocumentUpload } from './components/document-upload'
 import { LibraryFeedback } from './components/library-feedback'
 import { useLibraryController } from './library.controller'
 import './library.css'
@@ -10,6 +11,15 @@ export function LibraryModule() {
 
   return (
     <section className="library-module">
+      <DocumentUpload
+        feedbackMessage={controller.uploadFeedback.message}
+        feedbackStatus={controller.uploadFeedback.status}
+        isPending={controller.uploadPending}
+        onSelectFile={controller.selectFile}
+        onSubmit={controller.upload}
+        selectedFile={controller.selectedFile}
+      />
+
       <div className="library-summary">
         <article>
           <span className="library-summary__icon" aria-hidden="true">

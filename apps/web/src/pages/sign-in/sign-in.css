@@ -131,6 +131,7 @@
 
 .app-main {
   min-width: 0;
+  background: var(--background);
 }
 
 .app-header {
@@ -140,7 +141,7 @@
   min-height: 124px;
   padding: 27px clamp(24px, 4vw, 58px);
   border-bottom: 1px solid var(--border);
-  background: rgb(255 255 255 / 78%);
+  background: var(--header-background);
   backdrop-filter: blur(16px);
 }
 
@@ -161,10 +162,36 @@
   font-size: 13px;
 }
 
+.app-header__actions,
 .app-header__profile {
   display: flex;
   align-items: center;
   gap: 11px;
+}
+
+.theme-toggle {
+  display: grid;
+  width: 39px;
+  height: 39px;
+  place-items: center;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--control);
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
 }
 
 .app-header__profile > span {

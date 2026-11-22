@@ -1,5 +1,9 @@
 import { httpClient } from './http-client'
-import type { DocumentsPage, DocumentSummary } from './documents.types'
+import type {
+  DocumentsPage,
+  DocumentSummary,
+  IndexDocumentResponse,
+} from './documents.types'
 
 const PAGE_LIMIT = 100
 
@@ -13,6 +17,18 @@ async function getPage(page: number, signal?: AbortSignal) {
 }
 
 export const documentsService = {
+  async index(file: File): Promise<IndexDocumentResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await httpClient.post<IndexDocumentResponse>(
+      '/documents/index',
+      formData,
+    )
+
+    return response.data
+  },
+
   async listAll(signal?: AbortSignal): Promise<DocumentSummary[]> {
     const firstPage = await getPage(1, signal)
 
