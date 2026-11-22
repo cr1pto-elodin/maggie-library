@@ -3,6 +3,7 @@ import { documentChunks, documents } from '../../../database/schema.js';
 import type {
   IndexedDocument,
   PersistDocumentInput,
+  ReindexDocumentInput,
 } from '../models/indexed-document.model.js';
 import { DocumentsRepository } from './documents.repository.js';
 
@@ -225,6 +226,112 @@ describe('DocumentsRepository', () => {
       'chunk insertion failed',
     );
   });
+
+  it('deletes a document and relies on the foreign key cascade for chunks', async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: 'document-id' }]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const deleteDocument = vi.fn().mockReturnValue({ where });
+    const repository = new DocumentsRepository({
+      delete: deleteDocument,
+    } as unknown as Database);
+
+    await expect(repository.deleteById('document-id')).resolves.toBe(true);
+    expect(deleteDocument).toHaveBeenCalledWith(documents);
+    expect(where).toHaveBeenCalledOnce();
+  });
+
+  it('returns false when deleting an unknown document', async () => {
+    const repository = new DocumentsRepository({
+      delete: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    } as unknown as Database);
+
+    await expect(repository.deleteById('missing-id')).resolves.toBe(false);
+  });
+
+  it('replaces metadata and chunks in one optimistic transaction', async () => {
+    const updatedDocument = createIndexedDocument();
+    const returning = vi
+      .fn()
+      .mockResolvedValue([{ ...updatedDocument, revision: 2 }]);
+    const updateWhere = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where: updateWhere });
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const chunkValues = vi.fn().mockResolvedValue(undefined);
+    const transaction = {
+      update: vi.fn().mockReturnValue({ set }),
+      delete: vi.fn().mockReturnValue({ where: deleteWhere }),
+      insert: vi.fn().mockReturnValue({ values: chunkValues }),
+    };
+    const database = {
+      transaction: vi.fn((callback) => callback(transaction)),
+    };
+    const repository = new DocumentsRepository(database as unknown as Database);
+    const input = createReindexInput();
+
+    await expect(repository.reindex(input)).resolves.toEqual({
+      ...updatedDocument,
+      revision: 2,
+      chunkCount: input.chunks.length,
+    });
+    expect(transaction.update).toHaveBeenCalledWith(documents);
+    expect(transaction.delete).toHaveBeenCalledWith(documentChunks);
+    expect(transaction.insert).toHaveBeenCalledWith(documentChunks);
+    expect(chunkValues).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ documentId: input.documentId }),
+      ]),
+    );
+  });
+
+  it('does not replace chunks after an optimistic concurrency conflict', async () => {
+    const transaction = {
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      }),
+      delete: vi.fn(),
+      insert: vi.fn(),
+    };
+    const repository = new DocumentsRepository({
+      transaction: vi.fn((callback) => callback(transaction)),
+    } as unknown as Database);
+
+    await expect(repository.reindex(createReindexInput())).resolves.toBeNull();
+    expect(transaction.delete).not.toHaveBeenCalled();
+    expect(transaction.insert).not.toHaveBeenCalled();
+  });
+
+  it('propagates reindex chunk failures so the transaction can roll back', async () => {
+    const transaction = {
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([createIndexedDocument()]),
+          }),
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockRejectedValue(new Error('replacement failed')),
+      }),
+    };
+    const repository = new DocumentsRepository({
+      transaction: vi.fn((callback) => callback(transaction)),
+    } as unknown as Database);
+
+    await expect(repository.reindex(createReindexInput())).rejects.toThrow(
+      'replacement failed',
+    );
+  });
 });
 
 function createSelectChain(result: IndexedDocument[]) {
@@ -322,7 +429,17 @@ function createIndexedDocument(): IndexedDocument {
     chunkSize: 1_200,
     chunkOverlap: 200,
     chunkCount: 2,
+    revision: 1,
     createdAt: new Date('2026-11-15T00:00:00Z'),
+    updatedAt: new Date('2026-11-15T00:00:00Z'),
+  };
+}
+
+function createReindexInput(): ReindexDocumentInput {
+  return {
+    ...createInput(),
+    documentId: 'document-id',
+    expectedRevision: 1,
   };
 }
 

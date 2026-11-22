@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -17,6 +18,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { EmbedDocumentResponseDto } from '../dtos/embed-document-response.dto.js';
 import type { IndexDocumentResponseDto } from '../dtos/index-document-response.dto.js';
+import type { ReindexDocumentResponseDto } from '../dtos/reindex-document-response.dto.js';
 import type { SemanticSearchRequestDto } from '../dtos/semantic-search-request.dto.js';
 import type { SemanticSearchResponseDto } from '../dtos/semantic-search-response.dto.js';
 import { PdfExtractionExceptionFilter } from '../filters/pdf-extraction-exception.filter.js';
@@ -51,6 +53,12 @@ export class DocumentsController {
     return this.documentsQueryService.findById(id);
   }
 
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  delete(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.documentsQueryService.delete(id);
+  }
+
   @Post('search')
   @HttpCode(HttpStatus.OK)
   search(
@@ -65,6 +73,15 @@ export class DocumentsController {
     @UploadedFile(PdfUploadPipe) file: PdfUpload,
   ): Promise<IndexDocumentResponseDto> {
     return this.documentIndexingService.index(file);
+  }
+
+  @Post(':id/reindex')
+  @UseInterceptors(FileInterceptor('file'))
+  reindex(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @UploadedFile(PdfUploadPipe) file: PdfUpload,
+  ): Promise<ReindexDocumentResponseDto> {
+    return this.documentIndexingService.reindex(id, file);
   }
 
   @Post('extract')

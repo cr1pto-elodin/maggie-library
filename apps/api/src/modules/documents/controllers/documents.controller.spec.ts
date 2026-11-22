@@ -66,6 +66,24 @@ describe('DocumentsController', () => {
     expect(queryService.findById).toHaveBeenCalledWith('document-id');
   });
 
+  it('delegates document deletion by id', async () => {
+    const queryService = {
+      list: vi.fn(),
+      findById: vi.fn(),
+      delete: vi.fn().mockResolvedValue(undefined),
+    };
+    const controller = createController(
+      { extract: vi.fn() },
+      undefined,
+      undefined,
+      undefined,
+      queryService,
+    );
+
+    await expect(controller.delete('document-id')).resolves.toBeUndefined();
+    expect(queryService.delete).toHaveBeenCalledWith('document-id');
+  });
+
   it('delegates semantic search with its request body', async () => {
     const input = { query: 'Como funciona a biblioteca?', topK: 3 };
     const response = {
@@ -110,6 +128,34 @@ describe('DocumentsController', () => {
 
     await expect(controller.index(file)).resolves.toEqual(response);
     expect(indexingService.index).toHaveBeenCalledWith(file);
+  });
+
+  it('reindexes a PDF under the existing document id', async () => {
+    const response = {
+      documentId: 'document-id',
+      status: 'reindexed' as const,
+      originalName: 'fixture.pdf',
+      pageCount: 1,
+      chunkCount: 1,
+      embeddingModel: 'embeddinggemma',
+      embeddingDimensions: 768,
+      revision: 2,
+    };
+    const indexingService = {
+      index: vi.fn(),
+      reindex: vi.fn().mockResolvedValue(response),
+    };
+    const controller = createController(
+      { extract: vi.fn() },
+      undefined,
+      undefined,
+      indexingService,
+    );
+
+    await expect(controller.reindex('document-id', file)).resolves.toBe(
+      response,
+    );
+    expect(indexingService.reindex).toHaveBeenCalledWith('document-id', file);
   });
 
   it('extracts a PDF and returns the service result', async () => {
@@ -216,10 +262,14 @@ function createController(
   extractionService: { extract: ReturnType<typeof vi.fn> },
   chunkingService: { chunk: ReturnType<typeof vi.fn> } = { chunk: vi.fn() },
   embeddingService: { embed: ReturnType<typeof vi.fn> } = { embed: vi.fn() },
-  indexingService: { index: ReturnType<typeof vi.fn> } = { index: vi.fn() },
+  indexingService: {
+    index: ReturnType<typeof vi.fn>;
+    reindex?: ReturnType<typeof vi.fn>;
+  } = { index: vi.fn() },
   queryService: {
     list: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
+    delete?: ReturnType<typeof vi.fn>;
   } = { list: vi.fn(), findById: vi.fn() },
   semanticSearchService: { search: ReturnType<typeof vi.fn> } = {
     search: vi.fn(),

@@ -54,6 +54,14 @@ export class DocumentsQueryService {
     return document;
   }
 
+  async delete(id: string): Promise<void> {
+    const deleted = await this.documentsRepository.deleteById(id);
+
+    if (!deleted) {
+      throw new NotFoundException('Documento não encontrado.');
+    }
+  }
+
   private parsePositiveInteger(
     value: string | undefined,
     fallback: number,

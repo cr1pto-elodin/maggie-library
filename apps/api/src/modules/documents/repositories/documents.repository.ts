@@ -22,6 +22,7 @@ import type {
   IndexedDocument,
   PersistDocumentInput,
   PersistDocumentResult,
+  ReindexDocumentInput,
 } from '../models/indexed-document.model.js';
 import type {
   SemanticSearchCriteria,
@@ -39,6 +40,10 @@ export class DocumentsRepository {
       this.database,
       eq(documents.checksumSha256, checksumSha256),
     );
+  }
+
+  findIndexedById(id: string): Promise<IndexedDocument | null> {
+    return this.selectDocument(this.database, eq(documents.id, id));
   }
 
   async list(offset: number, limit: number): Promise<DocumentPage> {
@@ -61,10 +66,7 @@ export class DocumentsRepository {
   }
 
   async findById(id: string): Promise<DocumentDetails | null> {
-    const document = await this.selectDocument(
-      this.database,
-      eq(documents.id, id),
-    );
+    const document = await this.findIndexedById(id);
 
     if (!document) {
       return null;
@@ -171,6 +173,65 @@ export class DocumentsRepository {
     });
   }
 
+  async deleteById(id: string): Promise<boolean> {
+    const deletedDocuments = await this.database
+      .delete(documents)
+      .where(eq(documents.id, id))
+      .returning({ id: documents.id });
+
+    return deletedDocuments.length > 0;
+  }
+
+  reindex(input: ReindexDocumentInput): Promise<IndexedDocument | null> {
+    return this.database.transaction(async (transaction) => {
+      const [updatedDocument] = await transaction
+        .update(documents)
+        .set({
+          checksumSha256: input.checksumSha256,
+          originalName: input.originalName,
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+          pageCount: input.pageCount,
+          embeddingModel: input.embeddingModel,
+          embeddingDimensions: input.embeddingDimensions,
+          chunkSize: input.chunkSize,
+          chunkOverlap: input.chunkOverlap,
+          revision: sql`${documents.revision} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(documents.id, input.documentId),
+            eq(documents.revision, input.expectedRevision),
+          ),
+        )
+        .returning();
+
+      if (!updatedDocument) {
+        return null;
+      }
+
+      await transaction
+        .delete(documentChunks)
+        .where(eq(documentChunks.documentId, input.documentId));
+
+      await transaction.insert(documentChunks).values(
+        input.chunks.map((chunk) => ({
+          documentId: input.documentId,
+          chunkIndex: chunk.index,
+          pageNumber: chunk.pageNumber,
+          content: chunk.text,
+          embedding: chunk.embedding,
+        })),
+      );
+
+      return {
+        ...updatedDocument,
+        chunkCount: input.chunks.length,
+      };
+    });
+  }
+
   private async selectDocument(
     database: DatabaseReader,
     condition: SQL,
@@ -205,7 +266,9 @@ export class DocumentsRepository {
       chunkSize: documents.chunkSize,
       chunkOverlap: documents.chunkOverlap,
       chunkCount: count(documentChunks.id),
+      revision: documents.revision,
       createdAt: documents.createdAt,
+      updatedAt: documents.updatedAt,
     };
   }
 }

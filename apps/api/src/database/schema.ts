@@ -27,7 +27,11 @@ export const documents = pgTable(
     embeddingDimensions: smallint('embedding_dimensions').notNull(),
     chunkSize: integer('chunk_size').notNull(),
     chunkOverlap: integer('chunk_overlap').notNull(),
+    revision: integer('revision').default(1).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
@@ -39,6 +43,7 @@ export const documents = pgTable(
       sql`${table.embeddingDimensions} = ${sql.raw(String(EMBEDDING_DIMENSIONS))}`,
     ),
     check('documents_chunk_size_positive', sql`${table.chunkSize} > 0`),
+    check('documents_revision_positive', sql`${table.revision} > 0`),
     check(
       'documents_chunk_overlap_valid',
       sql`${table.chunkOverlap} >= 0 AND ${table.chunkOverlap} < ${table.chunkSize}`,

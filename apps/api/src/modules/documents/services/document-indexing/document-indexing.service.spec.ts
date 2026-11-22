@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
-import { BadGatewayException, BadRequestException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { EMBEDDING_DIMENSIONS } from '../../../../database/database.constants.js';
 import type { DocumentsConfig } from '../../config/documents.config.js';
 import { PdfExtractionError } from '../../exceptions/pdf-extraction.error.js';
@@ -165,6 +170,91 @@ describe('DocumentIndexingService', () => {
     );
   });
 
+  it('reindexes the same PDF and increments its revision', async () => {
+    const existingDocument = createIndexedDocument();
+    const repository = {
+      findByChecksum: vi.fn(),
+      createIfAbsent: vi.fn(),
+      findIndexedById: vi.fn().mockResolvedValue(existingDocument),
+      reindex: vi.fn().mockImplementation(async (input) =>
+        createIndexedDocument({
+          originalName: input.originalName,
+          revision: input.expectedRevision + 1,
+        }),
+      ),
+    };
+    const service = createService(repository);
+
+    await expect(service.reindex(existingDocument.id, file)).resolves.toEqual({
+      documentId: 'document-id',
+      status: 'reindexed',
+      originalName: 'library.pdf',
+      pageCount: 1,
+      chunkCount: 1,
+      embeddingModel: 'embeddinggemma',
+      embeddingDimensions: EMBEDDING_DIMENSIONS,
+      revision: 2,
+    });
+    expect(repository.reindex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: existingDocument.id,
+        expectedRevision: 1,
+        checksumSha256: existingDocument.checksumSha256,
+      }),
+    );
+  });
+
+  it('rejects reindexing an unknown document before processing the PDF', async () => {
+    const repository = {
+      findByChecksum: vi.fn(),
+      createIfAbsent: vi.fn(),
+      findIndexedById: vi.fn().mockResolvedValue(null),
+      reindex: vi.fn(),
+    };
+    const extractionService = { extract: vi.fn() };
+    const service = createService(repository, extractionService);
+
+    await expect(service.reindex('missing-id', file)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(extractionService.extract).not.toHaveBeenCalled();
+  });
+
+  it('rejects a different PDF before extraction and embedding', async () => {
+    const repository = {
+      findByChecksum: vi.fn(),
+      createIfAbsent: vi.fn(),
+      findIndexedById: vi
+        .fn()
+        .mockResolvedValue(
+          createIndexedDocument({ checksumSha256: 'b'.repeat(64) }),
+        ),
+      reindex: vi.fn(),
+    };
+    const extractionService = { extract: vi.fn() };
+    const service = createService(repository, extractionService);
+
+    await expect(service.reindex('document-id', file)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(extractionService.extract).not.toHaveBeenCalled();
+    expect(repository.reindex).not.toHaveBeenCalled();
+  });
+
+  it('reports an optimistic concurrency conflict', async () => {
+    const repository = {
+      findByChecksum: vi.fn(),
+      createIfAbsent: vi.fn(),
+      findIndexedById: vi.fn().mockResolvedValue(createIndexedDocument()),
+      reindex: vi.fn().mockResolvedValue(null),
+    };
+    const service = createService(repository);
+
+    await expect(service.reindex('document-id', file)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
   function createService(
     repository = createRepository(),
     extractionService = {
@@ -199,7 +289,7 @@ describe('DocumentIndexingService', () => {
   ): IndexedDocument {
     return {
       id: 'document-id',
-      checksumSha256: 'a'.repeat(64),
+      checksumSha256: createHash('sha256').update(file.buffer).digest('hex'),
       originalName: 'library.pdf',
       mimeType: 'application/pdf',
       sizeBytes: 3,
@@ -209,7 +299,9 @@ describe('DocumentIndexingService', () => {
       chunkSize: config.chunkSize,
       chunkOverlap: config.chunkOverlap,
       chunkCount: 1,
+      revision: 1,
       createdAt: new Date('2026-11-15T00:00:00Z'),
+      updatedAt: new Date('2026-11-15T00:00:00Z'),
       ...overrides,
     };
   }

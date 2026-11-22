@@ -71,11 +71,36 @@ describe('DocumentsQueryService', () => {
       NotFoundException,
     );
   });
+
+  it('deletes an existing document', async () => {
+    const repository = {
+      list: vi.fn(),
+      findById: vi.fn(),
+      deleteById: vi.fn().mockResolvedValue(true),
+    };
+    const service = createService(repository);
+
+    await expect(service.delete('document-id')).resolves.toBeUndefined();
+    expect(repository.deleteById).toHaveBeenCalledWith('document-id');
+  });
+
+  it('returns not found when deleting an unknown document', async () => {
+    const service = createService({
+      list: vi.fn(),
+      findById: vi.fn(),
+      deleteById: vi.fn().mockResolvedValue(false),
+    });
+
+    await expect(service.delete('missing-id')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
 });
 
 function createService(repository: {
   list: ReturnType<typeof vi.fn>;
   findById: ReturnType<typeof vi.fn>;
+  deleteById?: ReturnType<typeof vi.fn>;
 }) {
   return new DocumentsQueryService(
     repository as unknown as DocumentsRepository,
@@ -95,6 +120,8 @@ function createDocument(): IndexedDocument {
     chunkSize: 1_200,
     chunkOverlap: 200,
     chunkCount: 2,
+    revision: 1,
     createdAt: new Date('2026-11-15T00:00:00Z'),
+    updatedAt: new Date('2026-11-15T00:00:00Z'),
   };
 }

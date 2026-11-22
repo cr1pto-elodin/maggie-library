@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   INestApplication,
   NotFoundException,
 } from '@nestjs/common';
@@ -32,6 +33,16 @@ describe('HealthController (e2e)', () => {
       embeddingModel: 'embeddinggemma',
       embeddingDimensions: 768,
     }),
+    reindex: vi.fn().mockResolvedValue({
+      documentId: '550e8400-e29b-41d4-a716-446655440000',
+      status: 'reindexed',
+      originalName: 'fixture.pdf',
+      pageCount: 1,
+      chunkCount: 1,
+      embeddingModel: 'embeddinggemma',
+      embeddingDimensions: 768,
+      revision: 2,
+    }),
   };
   const documentId = '550e8400-e29b-41d4-a716-446655440000';
   const documentSummary = {
@@ -45,7 +56,9 @@ describe('HealthController (e2e)', () => {
     chunkSize: 1_200,
     chunkOverlap: 200,
     chunkCount: 1,
+    revision: 1,
     createdAt: new Date('2026-11-15T00:00:00Z'),
+    updatedAt: new Date('2026-11-15T00:00:00Z'),
   };
   const indexedDocument = {
     ...documentSummary,
@@ -68,6 +81,7 @@ describe('HealthController (e2e)', () => {
         },
       ],
     }),
+    delete: vi.fn().mockResolvedValue(undefined),
   };
   const semanticSearchService = {
     search: vi.fn().mockResolvedValue({
@@ -194,6 +208,55 @@ describe('HealthController (e2e)', () => {
     );
   });
 
+  it('/api/documents/:id/reindex (POST)', async () => {
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/${documentId}/reindex`)
+      .attach('file', createPdfFixture(), {
+        filename: 'fixture.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          documentId,
+          status: 'reindexed',
+          revision: 2,
+        });
+        expect(body).not.toHaveProperty('embedding');
+      });
+
+    expect(indexingService.reindex).toHaveBeenCalledWith(
+      documentId,
+      expect.objectContaining({ originalname: 'fixture.pdf' }),
+    );
+  });
+
+  it('/api/documents/:id/reindex (POST) rejects an invalid UUID', () => {
+    return request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/not-a-uuid/reindex`)
+      .attach('file', createPdfFixture(), {
+        filename: 'fixture.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(400);
+  });
+
+  it('/api/documents/:id/reindex (POST) rejects different content', async () => {
+    indexingService.reindex.mockRejectedValueOnce(
+      new ConflictException(
+        'O PDF enviado não corresponde ao documento que será reindexado.',
+      ),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/${apiPrefix}/documents/${documentId}/reindex`)
+      .attach('file', createPdfFixture(), {
+        filename: 'other.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(409);
+  });
+
   it('/api/documents (GET)', async () => {
     await request(app.getHttpServer())
       .get(`/${apiPrefix}/documents?page=1&limit=20`)
@@ -201,6 +264,8 @@ describe('HealthController (e2e)', () => {
       .expect(({ body }) => {
         expect(body.items).toHaveLength(1);
         expect(body.items[0]).not.toHaveProperty('embedding');
+        expect(body.items[0]).toMatchObject({ revision: 1 });
+        expect(body.items[0]).toHaveProperty('updatedAt');
         expect(body.pagination).toEqual({
           page: 1,
           limit: 20,
@@ -296,6 +361,31 @@ describe('HealthController (e2e)', () => {
       .expect(404);
   });
 
+  it('/api/documents/:id (DELETE)', async () => {
+    await request(app.getHttpServer())
+      .delete(`/${apiPrefix}/documents/${documentId}`)
+      .expect(204)
+      .expect('');
+
+    expect(queryService.delete).toHaveBeenCalledWith(documentId);
+  });
+
+  it('/api/documents/:id (DELETE) rejects an invalid UUID', () => {
+    return request(app.getHttpServer())
+      .delete(`/${apiPrefix}/documents/not-a-uuid`)
+      .expect(400);
+  });
+
+  it('/api/documents/:id (DELETE) returns not found', async () => {
+    queryService.delete.mockRejectedValueOnce(
+      new NotFoundException('Documento não encontrado.'),
+    );
+
+    await request(app.getHttpServer())
+      .delete(`/${apiPrefix}/documents/650e8400-e29b-41d4-a716-446655440000`)
+      .expect(404);
+  });
+
   it('/api/documents/extract (POST) rejects oversized PDFs', async () => {
     await request(app.getHttpServer())
       .post(`/${apiPrefix}/documents/extract`)
@@ -308,8 +398,10 @@ describe('HealthController (e2e)', () => {
 
   afterEach(async () => {
     indexingService.index.mockClear();
+    indexingService.reindex.mockClear();
     queryService.list.mockClear();
     queryService.findById.mockClear();
+    queryService.delete.mockClear();
     semanticSearchService.search.mockClear();
     await app.close();
   });

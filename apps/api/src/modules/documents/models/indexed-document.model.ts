@@ -12,7 +12,9 @@ export interface IndexedDocument {
   chunkSize: number;
   chunkOverlap: number;
   chunkCount: number;
+  revision: number;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface PersistDocumentInput {
@@ -31,4 +33,9 @@ export interface PersistDocumentInput {
 export interface PersistDocumentResult {
   document: IndexedDocument;
   created: boolean;
+}
+
+export interface ReindexDocumentInput extends PersistDocumentInput {
+  documentId: string;
+  expectedRevision: number;
 }
