@@ -39,7 +39,7 @@ PDF
                  └─ HTTP response with an indexing summary
 ```
 
-The `/documents/index` flow stores the document and every chunk atomically. The diagnostic `/documents/embed` route remains available and returns chunks with vectors without persisting them.
+The `/documents/index` flow stores the document and every chunk atomically. Embeddings remain internal to indexing and retrieval flows instead of being exposed through a diagnostic HTTP contract.
 
 ```text
 Question
@@ -235,17 +235,16 @@ Default addresses:
 
 ## Current Routes
 
-| Method   | Route                        | Description                                  |
-| -------- | ---------------------------- | -------------------------------------------- |
-| `GET`    | `/api/health`                | Checks whether the API is responding         |
-| `GET`    | `/api/documents`             | Lists indexed documents with pagination      |
-| `GET`    | `/api/documents/:id`         | Returns document details and text chunks     |
-| `DELETE` | `/api/documents/:id`         | Deletes a document and its chunks            |
-| `POST`   | `/api/documents/:id/reindex` | Rebuilds chunks and vectors for the same PDF |
-| `POST`   | `/api/documents/search`      | Retrieves chunks by semantic similarity      |
-| `POST`   | `/api/documents/extract`     | Extracts text and metadata from a PDF        |
-| `POST`   | `/api/documents/embed`       | Extracts, chunks, and embeds a PDF           |
-| `POST`   | `/api/documents/index`       | Idempotently persists a PDF and its vectors  |
+| Method   | Route                        | Success | Description                                  |
+| -------- | ---------------------------- | ------- | -------------------------------------------- |
+| `GET`    | `/api/health`                | `200`   | Checks whether the API is responding         |
+| `GET`    | `/api/documents`             | `200`   | Lists indexed documents with pagination      |
+| `GET`    | `/api/documents/:id`         | `200`   | Returns document details and text chunks     |
+| `DELETE` | `/api/documents/:id`         | `204`   | Deletes a document and its chunks            |
+| `POST`   | `/api/documents/:id/reindex` | `200`   | Rebuilds chunks and vectors for the same PDF |
+| `POST`   | `/api/documents/search`      | `200`   | Retrieves chunks by semantic similarity      |
+| `POST`   | `/api/documents/extract`     | `200`   | Extracts text and metadata from a PDF        |
+| `POST`   | `/api/documents/index`       | `200`   | Idempotently persists a PDF and its vectors  |
 
 The document endpoints accept `multipart/form-data` with the PDF in the `file` field.
 
@@ -274,6 +273,21 @@ curl -X POST \
 ```
 
 The reindex endpoint returns HTTP 409 when the uploaded checksum belongs to different content or when another lifecycle operation changes the document during processing. Delete returns HTTP 204 and relies on the database foreign key cascade to remove chunks.
+
+### Document Endpoint Errors
+
+| Status                  | Problem                                                                                    | Applicable operations          |
+| ----------------------- | ------------------------------------------------------------------------------------------ | ------------------------------ |
+| `400 Bad Request`       | Invalid version 4 UUID                                                                     | Read by ID, delete and reindex |
+| `400 Bad Request`       | Invalid pagination or semantic-search input                                                | List and search                |
+| `400 Bad Request`       | Missing, invalid or unreadable PDF                                                         | Extract, index and reindex     |
+| `400 Bad Request`       | PDF has no extractable text for embeddings                                                 | Index and reindex              |
+| `404 Not Found`         | The requested document does not exist                                                      | Read by ID, delete and reindex |
+| `409 Conflict`          | Reindex file has different content or the document changed while embeddings were generated | Reindex                        |
+| `413 Payload Too Large` | PDF exceeds the configured upload limit                                                    | Extract, index and reindex     |
+| `502 Bad Gateway`       | Ollama is unavailable or returns an invalid/incompatible embedding                         | Search, index and reindex      |
+
+These cases use NestJS HTTP exceptions at the service, pipe, or interceptor boundary. A dedicated exception class is only useful when a domain failure needs behavior beyond an HTTP status and message; adding one for each row would increase indirection without changing the contract.
 
 Search indexed chunks with a question and optional retrieval overrides:
 
