@@ -9,7 +9,9 @@ export interface DocumentSummary {
   chunkSize: number
   chunkOverlap: number
   chunkCount: number
+  revision: number
   createdAt: string
+  updatedAt: string
 }
 
 export interface DocumentsPage {
@@ -30,4 +32,15 @@ export interface IndexDocumentResponse {
   chunkCount: number
   embeddingModel: string
   embeddingDimensions: number
+}
+
+export interface ReindexDocumentResponse {
+  documentId: string
+  status: 'reindexed'
+  originalName: string
+  pageCount: number
+  chunkCount: number
+  embeddingModel: string
+  embeddingDimensions: number
+  revision: number
 }

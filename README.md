@@ -235,15 +235,17 @@ Default addresses:
 
 ## Current Routes
 
-| Method | Route                    | Description                                 |
-| ------ | ------------------------ | ------------------------------------------- |
-| `GET`  | `/api/health`            | Checks whether the API is responding        |
-| `GET`  | `/api/documents`         | Lists indexed documents with pagination     |
-| `GET`  | `/api/documents/:id`     | Returns document details and text chunks    |
-| `POST` | `/api/documents/search`  | Retrieves chunks by semantic similarity     |
-| `POST` | `/api/documents/extract` | Extracts text and metadata from a PDF       |
-| `POST` | `/api/documents/embed`   | Extracts, chunks, and embeds a PDF          |
-| `POST` | `/api/documents/index`   | Idempotently persists a PDF and its vectors |
+| Method   | Route                        | Description                                  |
+| -------- | ---------------------------- | -------------------------------------------- |
+| `GET`    | `/api/health`                | Checks whether the API is responding         |
+| `GET`    | `/api/documents`             | Lists indexed documents with pagination      |
+| `GET`    | `/api/documents/:id`         | Returns document details and text chunks     |
+| `DELETE` | `/api/documents/:id`         | Deletes a document and its chunks            |
+| `POST`   | `/api/documents/:id/reindex` | Rebuilds chunks and vectors for the same PDF |
+| `POST`   | `/api/documents/search`      | Retrieves chunks by semantic similarity      |
+| `POST`   | `/api/documents/extract`     | Extracts text and metadata from a PDF        |
+| `POST`   | `/api/documents/embed`       | Extracts, chunks, and embeds a PDF           |
+| `POST`   | `/api/documents/index`       | Idempotently persists a PDF and its vectors  |
 
 The document endpoints accept `multipart/form-data` with the PDF in the `file` field.
 
@@ -262,6 +264,16 @@ curl "http://localhost:4000/api/documents?page=1&limit=20"
 ```
 
 The default page size is 20 and the maximum is 100. Detail responses include chunks ordered by their original position, but neither read endpoint exposes embedding vectors.
+
+Reindex an existing document by sending the same PDF content again:
+
+```bash
+curl -X POST \
+  -F "file=@./document.pdf;type=application/pdf" \
+  http://localhost:4000/api/documents/550e8400-e29b-41d4-a716-446655440000/reindex
+```
+
+The reindex endpoint returns HTTP 409 when the uploaded checksum belongs to different content or when another lifecycle operation changes the document during processing. Delete returns HTTP 204 and relies on the database foreign key cascade to remove chunks.
 
 Search indexed chunks with a question and optional retrieval overrides:
 
@@ -285,7 +297,7 @@ The web application separates remote data responsibilities by layer:
 - module controllers adapt query results into component-facing state and actions;
 - components render the controller contract without depending on Axios or TanStack Query.
 
-Write operations use feature-specific mutations. After a successful index, the Library mutation invalidates `documentsQueryKeys.all` instead of updating unrelated components directly; deletion and reindexing should follow the same convention when their user actions exist.
+Write operations use feature-specific mutations. After successful indexing, reindexing, or deletion, the Library invalidates `documentsQueryKeys.all` instead of updating unrelated components directly. Deletion requires confirmation, while reindexing asks the user to select the original PDF again.
 
 ## Validation
 
@@ -344,6 +356,12 @@ The API calculates the PDF SHA-256 checksum before extraction or embedding gener
 
 For now, identical content represents the same document even when uploaded with another filename. Reindexing with different chunk settings or another embedding model will be an explicit document lifecycle operation instead of creating implicit duplicate records.
 
+### Explicit Document Lifecycle
+
+The API does not store uploaded PDF binaries. Reindexing therefore requires the client to upload the same content again, verified by SHA-256 checksum. This keeps storage and data-retention responsibilities small, at the cost of requiring the source file to remain available to the user. Object storage can replace this trade-off later without changing the chunk replacement rules.
+
+Embedding generation happens before the replacement transaction so a slow Ollama call does not hold database locks. The transaction increments a document revision, replaces every chunk, and rolls back as a unit on failure. An optimistic `id + revision` condition returns HTTP 409 rather than silently overwriting a concurrent reindex or deletion. Deletion is intentionally permanent in the current study scope and cascades to chunks; there is no soft-delete or version history yet.
+
 ### Read Models Without Vectors
 
 Document list and detail endpoints select only metadata and human-readable chunk fields. Embeddings remain an internal retrieval concern because returning hundreds of 768-dimensional arrays would increase payload size without helping document inspection. The detail endpoint preserves chunk order so extraction and chunking quality can be reviewed before semantic retrieval is introduced.
@@ -354,9 +372,11 @@ The initial schema does not create an HNSW or IVFFlat index. pgvector performs e
 
 ## Roadmap
 
-### 1. Document Lifecycle
+### 1. Document Lifecycle (Implemented)
 
-- define document reindexing and deletion.
+- explicitly reindex the same PDF with a new revision;
+- delete documents and chunks with confirmation in the Library;
+- keep replacement atomic and detect concurrent changes.
 
 ### 2. Semantic Retrieval (Implemented)
 
@@ -384,7 +404,6 @@ The initial schema does not create an HNSW or IVFFlat index. pgvector performs e
 - indexed document library;
 - processing status tracking;
 - questions and answers with sources;
-- reindexing and deletion;
 - conversation history.
 
 ### Later Improvements

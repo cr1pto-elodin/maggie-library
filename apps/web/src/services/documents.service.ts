@@ -3,6 +3,7 @@ import type {
   DocumentsPage,
   DocumentSummary,
   IndexDocumentResponse,
+  ReindexDocumentResponse,
 } from './documents.types'
 
 const PAGE_LIMIT = 100
@@ -17,6 +18,10 @@ async function getPage(page: number, signal?: AbortSignal) {
 }
 
 export const documentsService = {
+  async delete(documentId: string): Promise<void> {
+    await httpClient.delete(`/documents/${documentId}`)
+  },
+
   async index(file: File): Promise<IndexDocumentResponse> {
     const formData = new FormData()
     formData.append('file', file)
@@ -47,5 +52,20 @@ export const documentsService = {
       ...firstPage.items,
       ...remainingPages.flatMap((page) => page.items),
     ]
+  },
+
+  async reindex(
+    documentId: string,
+    file: File,
+  ): Promise<ReindexDocumentResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await httpClient.post<ReindexDocumentResponse>(
+      `/documents/${documentId}/reindex`,
+      formData,
+    )
+
+    return response.data
   },
 }

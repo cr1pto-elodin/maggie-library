@@ -1,10 +1,32 @@
+import type { ChangeEvent } from 'react'
+
 import type { LibraryDocument } from '../library.types'
 
 interface DocumentCardProps {
   document: LibraryDocument
+  isDeleting: boolean
+  isReindexing: boolean
+  onDelete: () => void
+  onReindex: (file: File) => void
 }
 
-export function DocumentCard({ document }: DocumentCardProps) {
+export function DocumentCard({
+  document,
+  isDeleting,
+  isReindexing,
+  onDelete,
+  onReindex,
+}: DocumentCardProps) {
+  function handleReindexFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+
+    if (file) {
+      onReindex(file)
+    }
+
+    event.target.value = ''
+  }
+
   return (
     <article className="document-card">
       <div className="document-card__icon" aria-hidden="true">
@@ -19,7 +41,7 @@ export function DocumentCard({ document }: DocumentCardProps) {
           <h3 title={document.name}>{document.name}</h3>
           <span>PDF</span>
         </div>
-        <p>Indexado em {document.date}</p>
+        <p>Atualizado em {document.date}</p>
 
         <div className="document-card__metadata">
           <span>{document.size}</span>
@@ -33,8 +55,26 @@ export function DocumentCard({ document }: DocumentCardProps) {
           <span aria-hidden="true" />
           {document.embeddingModel}
         </div>
+
+        <div className="document-card__actions">
+          <label>
+            <input
+              accept="application/pdf,.pdf"
+              disabled={isDeleting || isReindexing}
+              onChange={handleReindexFile}
+              type="file"
+            />
+            <span>{isReindexing ? 'Reindexando...' : 'Reindexar'}</span>
+          </label>
+          <button
+            disabled={isDeleting || isReindexing}
+            onClick={onDelete}
+            type="button"
+          >
+            {isDeleting ? 'Excluindo...' : 'Excluir'}
+          </button>
+        </div>
       </div>
     </article>
   )
 }
-

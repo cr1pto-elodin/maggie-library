@@ -56,8 +56,29 @@ export function LibraryModule() {
         </button>
       </div>
 
+      {controller.lifecycleFeedback.message ? (
+        <p
+          aria-live="polite"
+          className="library-lifecycle-feedback"
+          data-status={controller.lifecycleFeedback.status}
+          role={
+            controller.lifecycleFeedback.status === 'error'
+              ? 'alert'
+              : 'status'
+          }
+        >
+          {controller.lifecycleFeedback.message}
+        </p>
+      ) : null}
+
       {hasDocuments ? (
-        <DocumentList documents={controller.documents} />
+        <DocumentList
+          deletingDocumentId={controller.deletingDocumentId}
+          documents={controller.documents}
+          onDelete={controller.deleteDocument}
+          onReindex={controller.reindexDocument}
+          reindexingDocumentId={controller.reindexingDocumentId}
+        />
       ) : (
         <LibraryFeedback
           errorMessage={controller.errorMessage}
@@ -68,4 +89,3 @@ export function LibraryModule() {
     </section>
   )
 }
-
